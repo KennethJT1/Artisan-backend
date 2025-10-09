@@ -1,9 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Model } from 'mongoose';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
@@ -12,20 +18,55 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  async register(registerDto: RegisterDto) {
+    const { email, password } = registerDto;
+
+    const existingUser = await this.userModel.findOne({ email });
+    if (existingUser) {
+      throw new ConflictException('Email already exists');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new this.userModel({
+      ...registerDto,
+      password: hashedPassword,
+    });
+
+    await newUser.save();
+
+    const { password: _, ...userData } = newUser.toObject();
+    return userData;
+  }
+
+  // ✅ Validate credentials
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.userModel.findOne({ email });
-    if (user && await bcrypt.compare(pass, user.password)) {
+    if (user && (await bcrypt.compare(pass, user.password))) {
       const { password, ...result } = user.toObject();
       return result;
     }
     return null;
   }
 
-  async login(user: any) {
+  // ✅ Login and return JWT token
+  async login(loginDto: LoginDto) {
+    const user = await this.userModel.findOne({ email: loginDto.email });
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      user.password,
+    );
+    if (!isPasswordValid) throw new UnauthorizedException('Invalid credentials');
+
     const payload = { email: user.email, sub: user._id, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
-      user: { id: user._id, email: user.email, role: user.role },
+      user: {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+      },
     };
   }
 }

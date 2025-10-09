@@ -1,14 +1,28 @@
-import { Controller, Get, Post, Body, Query, Param, Patch, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  Param,
+  Patch,
+  Delete,
+} from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { Product } from './schemas/product.schema';
+import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
+import { PaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get()
-  async findAll(@Query('category') category?: string): Promise<Product[]> {
-    return this.productsService.findAll(category);
+  async findAll(
+    @Query('category') category?: string,
+    @Query() pagination?: PaginationQueryDto,
+  ): Promise<PaginatedResult<Product>> {
+    return this.productsService.findAll(category, pagination);
   }
 
   @Get(':id')
@@ -32,5 +46,12 @@ export class ProductsController {
   @Delete(':id')
   async delete(@Param('id') id: string) {
     return this.productsService.delete(id);
+  }
+
+  @Post('bulk')
+  // @UseGuards(JwtAuthGuard)
+  // @Roles(UserRole.ADMIN)
+  async bulkCreate(@Body() products: any[]) {
+    return this.productsService.bulkCreate(products);
   }
 }

@@ -14,6 +14,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { JwtModule } from '@nestjs/jwt';
 import { BullModule } from '@nestjs/bullmq';
 import { ArtisansModule } from './artisans/artisans.module';
+import { CategoriesModule } from './category/category.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { ArtisansModule } from './artisans/artisans.module';
     ProductsModule,
     PaymentsModule,
     ArtisansModule,
+    CategoriesModule,
   ],
 })
 export class AppModule {}

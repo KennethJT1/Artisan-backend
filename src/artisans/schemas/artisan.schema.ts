@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Category } from 'src/category/schemas/category.schema';
 
 export type ArtisanDocument = Artisan & Document;
 
@@ -17,8 +18,12 @@ export class Artisan {
   @Prop({ required: true })
   phone: string;
 
-  @Prop({ required: true, enum: ['Carpentry', 'Painting', 'Plumbing', 'Electrical', 'Landscaping', 'Interior Design', 'Masonry', 'Roofing', 'Flooring', 'HVAC', 'Other'] })
-  category: string;
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Category',
+    required: true,
+  })
+  category: Types.ObjectId | Category;
 
   @Prop({ required: true, enum: ['1-2', '3-5', '6-10', '10+'] })
   experience: string;
@@ -40,9 +45,6 @@ export class Artisan {
 
   @Prop({ default: 'pending', enum: ['pending', 'approved', 'rejected'] })
   status: string;
-
-  @Prop({ required: true, ref: 'User' })
-  user: string;
 }
 
 export const ArtisanSchema = SchemaFactory.createForClass(Artisan);

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Category } from 'src/category/schemas/category.schema';
 
 export type ProductDocument = Product & Document;
 
@@ -11,8 +12,12 @@ export class Product {
   @Prop({ required: true })
   description: string;
 
-  @Prop({ required: true })
-  category: string;
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Category',
+    required: true,
+  })
+  category: Types.ObjectId | Category;
 
   @Prop({ required: true })
   price: number;
@@ -22,7 +27,8 @@ export class Product {
 
   @Prop({
     required: true,
-    enum: ['new', 'like new', 'good', 'fair', 'for parts'],
+    enum: ['new', 'like new', 'good', 'fair', 'for parts', 'service'],
+    default: 'new',
   })
   condition: string;
 
@@ -32,13 +38,16 @@ export class Product {
   @Prop({ type: [String], default: [] })
   images: string[];
 
+  @Prop({ default: 'Nigeria' })
+  country: string;
+
   @Prop({
     type: {
       local: { type: Boolean, default: false },
       national: { type: Boolean, default: false },
       international: { type: Boolean, default: false },
-      weight: String,
-      dimensions: String,
+      weight: { type: String, default: '' },
+      dimensions: { type: String, default: '' },
     },
     default: {
       local: false,
