@@ -4,6 +4,7 @@ import { ArtisansController } from './artisans.controller';
 import { ArtisansService } from './artisans.service';
 import { Artisan, ArtisanSchema } from './schemas/artisan.schema';
 import { CategoriesModule } from 'src/category/category.module';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Module({
   imports: [
@@ -11,7 +12,7 @@ import { CategoriesModule } from 'src/category/category.module';
     CategoriesModule,
   ],
   controllers: [ArtisansController],
-  providers: [ArtisansService],
+  providers: [ArtisansService,CloudinaryService],
   exports: [ArtisansService],
 })
 export class ArtisansModule {}

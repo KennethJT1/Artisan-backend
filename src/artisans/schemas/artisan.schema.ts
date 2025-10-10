@@ -37,10 +37,24 @@ export class Artisan {
   @Prop({ required: true })
   location: string;
 
-  @Prop({ type: [String], default: [] })
+  @Prop({
+    type: [String],
+    default: [],
+    validate: [
+      /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i,
+      'Portfolio item must be a valid image URL',
+    ],
+  })
   portfolio: string[];
 
-  @Prop({ type: [String], default: [] })
+  @Prop({
+    type: [String],
+    default: [],
+    validate: [
+      /^https?:\/\/.+\.(jpg|jpeg|png|gif|pdf|webp)$/i,
+      'Certification must be a valid image or PDF URL',
+    ],
+  })
   certifications: string[];
 
   @Prop({ default: 'pending', enum: ['pending', 'approved', 'rejected'] })

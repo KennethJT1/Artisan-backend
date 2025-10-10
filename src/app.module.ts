@@ -15,6 +15,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { BullModule } from '@nestjs/bullmq';
 import { ArtisansModule } from './artisans/artisans.module';
 import { CategoriesModule } from './category/category.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { CategoriesModule } from './category/category.module';
     PaymentsModule,
     ArtisansModule,
     CategoriesModule,
+    CloudinaryModule,
   ],
 })
 export class AppModule {}
