@@ -22,8 +22,9 @@ export class UsersService {
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
-      this.userModel.find().skip(skip).limit(limit).exec(),
-      this.userModel.countDocuments().exec(),
+      // Select all fields EXCEPT password
+      this.userModel.find().select('-password').skip(skip).limit(limit).exec(),
+      this.userModel.countDocuments().exec(), // Count doesn't need select
     ]);
 
     return {
@@ -38,18 +39,28 @@ export class UsersService {
   }
 
   async findOne(id: string): Promise<User | null> {
-    return this.userModel.findById(id).exec();
+    // Select all fields EXCEPT password
+    return this.userModel.findById(id).select('-password').exec();
   }
 
   async findOneByEmail(email: string): Promise<User | null> {
-    return this.userModel.findOne({ email }).exec();
+    // Select all fields EXCEPT password
+    return this.userModel.findOne({ email }).select('-password').exec();
   }
+
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
-    return this.userModel.findByIdAndUpdate(id, updateUserDto, { new: true }).exec();
+    return this.userModel
+      .findByIdAndUpdate(id, updateUserDto, { new: true })
+      .select('-password')
+      .exec();
   }
 
+
   async remove(id: string): Promise<User | null> {
-    return this.userModel.findByIdAndDelete(id).exec();
+    return this.userModel
+      .findByIdAndDelete(id)
+      .select('-password') 
+      .exec();
   }
 }
