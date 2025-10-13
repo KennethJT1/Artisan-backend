@@ -103,4 +103,13 @@ export class ArtisansController {
   ): Promise<PaginatedResult<Artisan>> {
     return this.artisansService.findAll(page, limit);
   }
+
+  @Post('bulk-create')
+  // @UseGuards(AdminGuard)
+  async bulkCreate(@Body() artisansData: Partial<Artisan>[]) {
+    if (!Array.isArray(artisansData)) {
+      throw new Error('Request body must be an array of artisans');
+    }
+    return this.artisansService.bulkCreate(artisansData);
+  }
 }

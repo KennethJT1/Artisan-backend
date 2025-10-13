@@ -30,7 +30,9 @@ export class ArtisansService {
       }
 
       if (!Types.ObjectId.isValid(categoryId)) {
-        throw new NotFoundException(`Invalid category ID format: ${categoryId}`);
+        throw new NotFoundException(
+          `Invalid category ID format: ${categoryId}`,
+        );
       }
 
       const categoryExists = await this.categoriesService.findOne(categoryId);
@@ -157,5 +159,51 @@ export class ArtisansService {
       throw new NotFoundException(`Invalid artisan ID format: ${id}`);
     }
     return this.artisanModel.findById(id).populate('category').exec();
+  }
+
+  // NEW: Bulk create method
+  async bulkCreate(
+    artisansData: Partial<Artisan>[],
+  ): Promise<ArtisanDocument[]> {
+    for (const artisanDatum of artisansData) {
+      if (artisanDatum.category) {
+        let categoryId: string;
+
+        if (typeof artisanDatum.category === 'string') {
+          categoryId = artisanDatum.category;
+        } else if (artisanDatum.category instanceof Types.ObjectId) {
+          categoryId = artisanDatum.category.toString();
+        } else {
+          throw new NotFoundException(
+            `Invalid category format provided for artisan ${artisanDatum.firstName} ${artisanDatum.lastName}: ${typeof artisanDatum.category}`,
+          );
+        }
+
+        if (!Types.ObjectId.isValid(categoryId)) {
+          throw new NotFoundException(
+            `Invalid category ID format for artisan ${artisanDatum.firstName} ${artisanDatum.lastName}: ${categoryId}`,
+          );
+        }
+
+        const categoryExists = await this.categoriesService.findOne(categoryId);
+        if (!categoryExists || !categoryExists.isActive) {
+          throw new NotFoundException(
+            `Category with ID ${categoryId} for artisan ${artisanDatum.firstName} ${artisanDatum.lastName} not found or inactive.`,
+          );
+        }
+
+        artisanDatum.category = new Types.ObjectId(categoryId);
+      }
+    }
+
+    try {
+      const result = await this.artisanModel.insertMany(artisansData, {
+        ordered: false,
+      });
+      return result;
+    } catch (error) {
+      console.error('Bulk create error:', error.message);
+      throw error;
+    }
   }
 }

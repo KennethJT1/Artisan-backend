@@ -28,7 +28,9 @@ export class User {
 
   @Prop() phone: string;
   @Prop() address: string;
-  @Prop() location: string; 
+  @Prop() location: string;
+  @Prop() resetToken?: string;
+  @Prop() resetTokenExpiry?: Date;
 
   // Artisan-specific
   @Prop() category?: string;
