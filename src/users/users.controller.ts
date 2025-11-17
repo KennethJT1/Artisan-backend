@@ -46,12 +46,16 @@ export class UsersController {
     return this.usersService.remove(id);
   }
 
-    @Post(':id/change-password')
+  @Post(':id/change-password')
   async changePassword(
     @Param('id') id: string,
     @Body() body: { currentPassword: string; newPassword: string },
   ) {
-    return this.usersService.changePassword(id, body.currentPassword, body.newPassword);
+    return this.usersService.changePassword(
+      id,
+      body.currentPassword,
+      body.newPassword,
+    );
   }
 
   @Post('forgot-password')
@@ -61,8 +65,9 @@ export class UsersController {
 
   @Post('reset-password')
   async resetPassword(
-    @Body() body: { token: string; newPassword: string },
+    @Body('token') token: string,
+    @Body('newPassword') newPassword: string,
   ) {
-    return this.usersService.resetPassword(body.token, body.newPassword);
+    return this.usersService.resetPassword(token, newPassword);
   }
 }

@@ -12,6 +12,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { PaginatedResult } from 'src/common/interfaces/paginated-result.interface';
+import { sendEmail } from '../utils/email';
 
 @Injectable()
 export class UsersService {
@@ -89,6 +90,7 @@ export class UsersService {
     if (!user)
       throw new NotFoundException('User with this email does not exist');
 
+    // Generate reset token
     const resetToken = randomBytes(32).toString('hex');
     const resetTokenExpiry = new Date(Date.now() + 1000 * 60 * 15);
 
@@ -96,28 +98,43 @@ export class UsersService {
     user.resetTokenExpiry = resetTokenExpiry;
     await user.save();
 
-    // Normally you'd send email here
+    // 📌 Build reset link for frontend
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
+
+    // 📧 Send email using SMTP
+    await sendEmail({
+      to: email,
+      subject: 'Reset Your Password',
+      html: `
+      <p>You requested to reset your password.</p>
+      <p>Click the link below to choose a new password:</p>
+      <a href="${resetUrl}" target="_blank">Reset Password</a>
+      <p>This link expires in 15 minutes.</p>
+    `,
+    });
+
     return {
-      message: 'Password reset token generated successfully',
-      resetToken,
-      expiresIn: '15 minutes',
+      message: 'Password reset email sent',
+      devToken: resetToken, // remove in production
     };
   }
 
   // ✅ Reset password using the token
   async resetPassword(token: string, newPassword: string) {
-    const user = await this.userModel.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: new Date() },
-    });
+  const user = await this.userModel.findOne({
+    resetToken: token,
+    resetTokenExpiry: { $gt: new Date() },
+  });
 
-    if (!user) throw new BadRequestException('Invalid or expired token');
+  if (!user) throw new BadRequestException('Invalid or expired token');
 
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
-    await user.save();
+  user.password = await bcrypt.hash(newPassword, 10); // <-- ERROR occurs here
+  user.resetToken = undefined;
+  user.resetTokenExpiry = undefined;
 
-    return { message: 'Password reset successful' };
-  }
+  await user.save();
+
+  return { message: 'Password reset successful' };
+}
+
 }
