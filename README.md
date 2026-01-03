@@ -32,3 +32,18 @@ $ yarn run test:e2e
 # test coverage
 $ yarn run test:cov
 ```
+
+find . -type f \
+  -not -name 'merged.txt' \
+  -not -name '.env*' \
+  -not -path '*/node_modules/*' \
+  -not -path '*/.yarn/*' \
+  -not -name 'yarn.lock' \
+  -not -name 'package.json' \
+  -not -name 'package-lock.json' \
+  -not -name 'pnpm-lock.yaml' \
+  -print0 | while IFS= read -r -d $'\0' file; do
+    echo "===== $file =====" >> merged.txt
+    cat "$file" >> merged.txt
+    echo -e "\n\n" >> merged.txt
+done

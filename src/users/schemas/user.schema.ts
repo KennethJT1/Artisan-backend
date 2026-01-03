@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Types } from 'mongoose';
+import { Artisan } from 'src/artisans/schemas/artisan.schema';
 
 export type UserDocument = User & Document;
 
@@ -17,7 +18,7 @@ export class User {
   @Prop({ required: true })
   lastName: string;
 
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true, unique: true, lowercase: true })
   email: string;
 
   @Prop({ required: true })
@@ -26,22 +27,24 @@ export class User {
   @Prop({ enum: UserRole, default: UserRole.CUSTOMER })
   role: UserRole;
 
-  @Prop() phone: string;
-  @Prop() address: string;
-  @Prop() location: string;
+  @Prop() phone?: string;
+
+  // Customer-only
+  @Prop() address?: string;
+
+  // Auth / system
   @Prop() resetToken?: string;
   @Prop() resetTokenExpiry?: Date;
 
-  // Artisan-specific
-  @Prop() category?: string;
-  @Prop() hourlyRate?: number;
-  @Prop() bio?: string;
-  @Prop([String]) skills?: string[];
-  @Prop() isApproved?: boolean;
-
-  // Subscription
-  @Prop({ default: 'free' }) // 'free', 'beginner', 'intermediate', 'advanced'
+  // Meta
+  @Prop({ default: 'free' })
   plan: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'Artisan' })
+  artisanProfile: Types.ObjectId | any;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -16,6 +16,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ArtisansModule } from './artisans/artisans.module';
 import { CategoriesModule } from './category/category.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     ArtisansModule,
     CategoriesModule,
     CloudinaryModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

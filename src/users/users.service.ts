@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+
 import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -17,16 +18,25 @@ import { sendEmail } from '../utils/email';
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
+    const existing = await this.userModel.findOne({
+      email: createUserDto.email,
+    });
+
+    if (existing) {
+      throw new BadRequestException('Email already in use');
+    }
+
     const hashed = await bcrypt.hash(createUserDto.password, 10);
-    const createdUser = new this.userModel({
+
+    return this.userModel.create({
       ...createUserDto,
       password: hashed,
     });
-    return createdUser.save();
   }
 
   async findAll(
@@ -37,8 +47,8 @@ export class UsersService {
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
-      this.userModel.find().select('-password').skip(skip).limit(limit).exec(),
-      this.userModel.countDocuments().exec(),
+      this.userModel.find().select('-password').skip(skip).limit(limit),
+      this.userModel.countDocuments(),
     ]);
 
     return {
@@ -47,23 +57,22 @@ export class UsersService {
     };
   }
 
-  async findOne(id: string): Promise<User | null> {
-    return this.userModel.findById(id).select('-password').exec();
+  async findOne(id: string) {
+    return this.userModel.findById(id).select('-password');
   }
 
-  async findOneByEmail(email: string): Promise<User | null> {
-    return this.userModel.findOne({ email }).exec();
+  async findOneByEmail(email: string) {
+    return this.userModel.findOne({ email });
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User | null> {
+  async update(id: string, updateUserDto: UpdateUserDto) {
     return this.userModel
       .findByIdAndUpdate(id, updateUserDto, { new: true })
-      .select('-password')
-      .exec();
+      .select('-password');
   }
 
-  async remove(id: string): Promise<User | null> {
-    return this.userModel.findByIdAndDelete(id).select('-password').exec();
+  async remove(id: string) {
+    return this.userModel.findByIdAndDelete(id).select('-password');
   }
 
   async changePassword(
@@ -74,9 +83,8 @@ export class UsersService {
     const user = await this.userModel.findById(userId);
     if (!user) throw new NotFoundException('User not found');
 
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
-    if (!isMatch)
-      throw new BadRequestException('Current password is incorrect');
+    const match = await bcrypt.compare(currentPassword, user.password);
+    if (!match) throw new BadRequestException('Current password is incorrect');
 
     user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
@@ -84,57 +92,48 @@ export class UsersService {
     return { message: 'Password updated successfully' };
   }
 
-  // 🧠 Forgot password: generate token
+  // 🧠 Forgot password
   async forgotPassword(email: string) {
     const user = await this.userModel.findOne({ email });
-    if (!user)
-      throw new NotFoundException('User with this email does not exist');
+    if (!user) throw new NotFoundException('User not found');
 
-    // Generate reset token
     const resetToken = randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 1000 * 60 * 15);
-
     user.resetToken = resetToken;
-    user.resetTokenExpiry = resetTokenExpiry;
+    user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+
     await user.save();
 
-    // 📌 Build reset link for frontend
     const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
 
-    // 📧 Send email using SMTP
     await sendEmail({
       to: email,
       subject: 'Reset Your Password',
       html: `
-      <p>You requested to reset your password.</p>
-      <p>Click the link below to choose a new password:</p>
-      <a href="${resetUrl}" target="_blank">Reset Password</a>
-      <p>This link expires in 15 minutes.</p>
-    `,
+        <p>Click the link below to reset your password:</p>
+        <a href="${resetUrl}">Reset Password</a>
+      `,
     });
 
-    return {
-      message: 'Password reset email sent',
-      devToken: resetToken, // remove in production
-    };
+    return { message: 'Password reset email sent' };
   }
 
-  // ✅ Reset password using the token
+  // ✅ FIXED RESET PASSWORD
   async resetPassword(token: string, newPassword: string) {
-  const user = await this.userModel.findOne({
-    resetToken: token,
-    resetTokenExpiry: { $gt: new Date() },
-  });
+    const user = await this.userModel.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: new Date() },
+    });
 
-  if (!user) throw new BadRequestException('Invalid or expired token');
+    if (!user) {
+      throw new BadRequestException('Invalid or expired token');
+    }
 
-  user.password = await bcrypt.hash(newPassword, 10); // <-- ERROR occurs here
-  user.resetToken = undefined;
-  user.resetTokenExpiry = undefined;
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
 
-  await user.save();
+    await user.save();
 
-  return { message: 'Password reset successful' };
-}
-
+    return { message: 'Password reset successful' };
+  }
 }

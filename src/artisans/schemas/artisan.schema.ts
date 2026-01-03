@@ -1,26 +1,24 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Category } from 'src/category/schemas/category.schema';
+import { User } from 'src/users/schemas/user.schema';
 
 export type ArtisanDocument = Artisan & Document;
 
 @Schema({ timestamps: true })
 export class Artisan {
-  @Prop({ required: true })
-  firstName: string;
-
-  @Prop({ required: true })
-  lastName: string;
-
-  @Prop({ required: true, unique: true })
-  email: string;
-
-  @Prop({ required: true })
-  phone: string;
+  // 🔗 Link to User (VERY IMPORTANT)
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    unique: true,
+  })
+  user: Types.ObjectId | any;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: 'Category',
+    ref: Category.name,
     required: true,
   })
   category: Types.ObjectId | Category;
@@ -40,25 +38,23 @@ export class Artisan {
   @Prop({
     type: [String],
     default: [],
-    validate: [
-      /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i,
-      'Portfolio item must be a valid image URL',
-    ],
   })
   portfolio: string[];
 
   @Prop({
     type: [String],
     default: [],
-    validate: [
-      /^https?:\/\/.+\.(jpg|jpeg|png|gif|pdf|webp)$/i,
-      'Certification must be a valid image or PDF URL',
-    ],
   })
   certifications: string[];
 
-  @Prop({ default: 'pending', enum: ['pending', 'approved', 'rejected'] })
+  @Prop({
+    default: 'pending',
+    enum: ['pending', 'approved', 'rejected'],
+  })
   status: string;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const ArtisanSchema = SchemaFactory.createForClass(Artisan);

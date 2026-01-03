@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { Category, CategoryDocument } from './schemas/category.schema';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -105,9 +105,13 @@ export class CategoriesService {
     return { message: `Category '${deleted.name}' deleted successfully` };
   }
 
-  async findByName(name: string): Promise<Category | null> {
-    return this.categoryModel
-      .findOne({ name: new RegExp(`^${name}$`, 'i') })
-      .exec();
+  // async findByName(name: string): Promise<Category | null> {
+  //   return this.categoryModel
+  //     .findOne({ name: new RegExp(`^${name}$`, 'i') })
+  //     .exec();
+  // }
+
+  async findByName(name: string, session?: ClientSession) {
+    return this.categoryModel.findOne({ name }).session(session ?? null);
   }
 }

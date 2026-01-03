@@ -1,9 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { Artisan, ArtisanDocument } from './schemas/artisan.schema';
 import { CategoriesService } from 'src/category/category.service';
 import { PaginatedResult } from 'src/common/interfaces/paginated-result.interface';
+import { User, UserDocument, UserRole } from 'src/users/schemas/user.schema';
+import { ApplyArtisanDto } from './dto/create-artisan.dto';
+import * as bcrypt from 'bcrypt';
+import { ClientSession } from 'mongoose';
 
 @Injectable()
 export class ArtisansService {
@@ -11,49 +19,78 @@ export class ArtisansService {
     @InjectModel(Artisan.name)
     private readonly artisanModel: Model<ArtisanDocument>,
     private readonly categoriesService: CategoriesService,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
+    @InjectConnection()
+    private readonly connection: Connection,
   ) {}
 
-  // 🟢 Apply for artisan — no user required
-  async apply(data: Partial<Artisan>): Promise<ArtisanDocument> {
-    // ✅ Validate category if provided
-    if (data.category) {
-      let categoryId: string;
+  async apply(data: ApplyArtisanDto): Promise<ArtisanDocument> {
+  const session: ClientSession = await this.connection.startSession();
 
-      if (typeof data.category === 'string') {
-        categoryId = data.category;
-      } else if (data.category instanceof Types.ObjectId) {
-        categoryId = data.category.toString();
-      } else {
-        throw new NotFoundException(
-          `Invalid category format provided: ${typeof data.category}`,
-        );
-      }
+  try {
+    session.startTransaction();
 
-      if (!Types.ObjectId.isValid(categoryId)) {
-        throw new NotFoundException(
-          `Invalid category ID format: ${categoryId}`,
-        );
-      }
+    // Check existing user
+    const existing = await this.userModel
+      .findOne({ email: data.email.toLowerCase() })
+      .session(session);
 
-      const categoryExists = await this.categoriesService.findOne(categoryId);
-      if (!categoryExists || !categoryExists.isActive) {
-        throw new NotFoundException(
-          `Category with ID ${categoryId} not found or inactive.`,
-        );
-      }
+    if (existing) throw new BadRequestException('Email already in use');
 
-      data.category = new Types.ObjectId(categoryId);
-    }
+    const hashed = await bcrypt.hash(data.password, 10);
 
-    // ✅ No user ID required
-    const createdArtisan = new this.artisanModel(data);
-    return createdArtisan.save();
+    // Create User
+    const user = new this.userModel({
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email.toLowerCase(),
+      password: hashed,
+      role: UserRole.ARTISAN,
+      phone: data.phone,
+    });
+    await user.save({ session });
+
+    // Resolve category
+    const categoryDoc = await this.categoriesService.findByName(
+      data.category,
+      session,
+    );
+
+    if (!categoryDoc || !categoryDoc.isActive)
+      throw new NotFoundException('Category not found or inactive');
+
+    // Create Artisan
+    const artisan = new this.artisanModel({
+      user: user._id,
+      category: categoryDoc._id,
+      experience: data.experience,
+      hourlyRate: data.hourlyRate,
+      description: data.description,
+      location: data.location,
+      portfolio: data.portfolio || [],
+      certifications: data.certifications || [],
+    });
+    await artisan.save({ session });
+
+    // Update User
+    user.artisanProfile = artisan._id;
+    await user.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    await artisan.populate('category');
+
+    return artisan;
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
   }
+}
 
-  async findAll(
-    page: number = 1,
-    limit: number = 10,
-  ): Promise<PaginatedResult<Artisan>> {
+  async findAll(page = 1, limit = 10): Promise<PaginatedResult<Artisan>> {
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
@@ -61,8 +98,7 @@ export class ArtisansService {
         .find({ status: 'approved' })
         .populate('category')
         .skip(skip)
-        .limit(limit)
-        .exec(),
+        .limit(limit),
       this.artisanModel.countDocuments({ status: 'approved' }),
     ]);
 
@@ -77,11 +113,7 @@ export class ArtisansService {
     };
   }
 
-  // 🟢 Get pending artisans (for admin review)
-  async findPending(
-    page: number = 1,
-    limit: number = 10,
-  ): Promise<PaginatedResult<Artisan>> {
+  async findPending(page = 1, limit = 10): Promise<PaginatedResult<Artisan>> {
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
@@ -89,8 +121,7 @@ export class ArtisansService {
         .find({ status: 'pending' })
         .populate('category')
         .skip(skip)
-        .limit(limit)
-        .exec(),
+        .limit(limit),
       this.artisanModel.countDocuments({ status: 'pending' }),
     ]);
 
@@ -105,105 +136,39 @@ export class ArtisansService {
     };
   }
 
-  // 🟢 Update artisan status (admin only)
-  async updateStatus(id: string, status: string): Promise<ArtisanDocument> {
+  async updateStatus(
+    id: string,
+    status: 'approved' | 'rejected',
+  ): Promise<ArtisanDocument> {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Invalid artisan ID format: ${id}`);
+      throw new BadRequestException('Invalid artisan ID');
     }
 
     const artisan = await this.artisanModel
       .findByIdAndUpdate(id, { status }, { new: true })
-      .populate('category')
-      .exec();
+      .populate('category');
 
     if (!artisan) {
-      throw new NotFoundException(`Artisan with ID ${id} not found`);
+      throw new NotFoundException('Artisan not found');
     }
 
     return artisan;
   }
 
-  // 🟢 Update artisan profile (for future “edit profile” feature)
-  async update(
-    id: string,
-    updates: Partial<Artisan> & { $push?: any; $pull?: any },
-  ): Promise<ArtisanDocument> {
+  async findOne(id: string): Promise<ArtisanDocument> {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Invalid artisan ID format: ${id}`);
+      throw new BadRequestException('Invalid artisan ID');
     }
-
-    const updateOperations: any = { ...updates };
-    if (updateOperations.$push || updateOperations.$pull) {
-      delete updateOperations.portfolio;
-      delete updateOperations.certifications;
-    }
-
-    const updatedArtisan = await this.artisanModel
-      .findByIdAndUpdate(id, updateOperations, {
-        new: true,
-        runValidators: true,
-      })
-      .populate('category')
-      .exec();
-
-    if (!updatedArtisan) {
-      throw new NotFoundException(`Artisan with ID ${id} not found`);
-    }
-
-    return updatedArtisan;
+    const artisan = await this.artisanModel.findById(id).populate('category');
+    if (!artisan) throw new NotFoundException('Artisan not found');
+    return artisan;
   }
 
-  // 🟢 Find artisan by ID
-  async findOne(id: string): Promise<ArtisanDocument | null> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Invalid artisan ID format: ${id}`);
-    }
-    return this.artisanModel.findById(id).populate('category').exec();
-  }
-
-  // NEW: Bulk create method
-  async bulkCreate(
-    artisansData: Partial<Artisan>[],
-  ): Promise<ArtisanDocument[]> {
-    for (const artisanDatum of artisansData) {
-      if (artisanDatum.category) {
-        let categoryId: string;
-
-        if (typeof artisanDatum.category === 'string') {
-          categoryId = artisanDatum.category;
-        } else if (artisanDatum.category instanceof Types.ObjectId) {
-          categoryId = artisanDatum.category.toString();
-        } else {
-          throw new NotFoundException(
-            `Invalid category format provided for artisan ${artisanDatum.firstName} ${artisanDatum.lastName}: ${typeof artisanDatum.category}`,
-          );
-        }
-
-        if (!Types.ObjectId.isValid(categoryId)) {
-          throw new NotFoundException(
-            `Invalid category ID format for artisan ${artisanDatum.firstName} ${artisanDatum.lastName}: ${categoryId}`,
-          );
-        }
-
-        const categoryExists = await this.categoriesService.findOne(categoryId);
-        if (!categoryExists || !categoryExists.isActive) {
-          throw new NotFoundException(
-            `Category with ID ${categoryId} for artisan ${artisanDatum.firstName} ${artisanDatum.lastName} not found or inactive.`,
-          );
-        }
-
-        artisanDatum.category = new Types.ObjectId(categoryId);
-      }
-    }
-
-    try {
-      const result = await this.artisanModel.insertMany(artisansData, {
-        ordered: false,
-      });
-      return result;
-    } catch (error) {
-      console.error('Bulk create error:', error.message);
-      throw error;
-    }
+  // ✅ Bulk create
+  async bulkCreate(data: Partial<Artisan>[]): Promise<ArtisanDocument[]> {
+    const inserted = await this.artisanModel.insertMany(data, {
+      ordered: false,
+    });
+    return this.artisanModel.populate(inserted, { path: 'category' });
   }
 }

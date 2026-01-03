@@ -1,15 +1,23 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
 export type PaymentDocument = Payment & Document;
 
 @Schema({ timestamps: true })
 export class Payment {
-  @Prop({ required: true, ref: 'User' })
-  customer: string;
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'User',
+    required: true,
+  })
+  customer: Types.ObjectId;
 
-  @Prop({ required: true, ref: 'User' })
-  artisan: string;
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Artisan',
+    required: true,
+  })
+  artisan: Types.ObjectId;
 
   @Prop({ required: true })
   service: string;
@@ -41,17 +49,41 @@ export class Payment {
   @Prop({ required: true })
   total: number;
 
-  @Prop({ required: true, enum: ['pending', 'in_progress', 'completed', 'cancelled'] })
+  @Prop({
+    required: true,
+    enum: ['pending', 'in_progress', 'completed', 'cancelled'],
+  })
   status: string;
 
-  @Prop({ required: true, enum: ['pending', 'paid', 'failed'] })
+  @Prop({
+    required: true,
+    enum: ['pending', 'paid', 'failed'],
+  })
   paymentStatus: string;
 
-  @Prop({ required: true, enum: ['card', 'paypal', 'apple'] })
+  @Prop({
+    required: true,
+    enum: ['card', 'paypal', 'apple'],
+  })
   paymentMethod: string;
 
   @Prop()
   transactionId: string;
+
+  @Prop()
+  rating: number;
+
+  @Prop({
+    enum: ['pending', 'processed', 'failed'],
+    default: 'pending',
+  })
+  payoutStatus: string;
+
+  @Prop()
+  processedAt: Date;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const PaymentSchema = SchemaFactory.createForClass(Payment);
