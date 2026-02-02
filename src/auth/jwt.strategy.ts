@@ -11,7 +11,7 @@ import { StrategyOptions } from 'passport-jwt';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly configService: ConfigService,
-    @InjectModel(User.name) private userModel: Model<UserDocument>, // Inject User model
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {
     const jwtSecret = configService.get<string>('JWT_SECRET');
 
@@ -30,11 +30,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) { 
-    const user = await this.userModel.findById(payload.sub).select('-password'); // Exclude password
+    
+    const user = await this.userModel.findById(payload.sub).select('-password');
+    
     if (!user) {
+      console.error('❌ User not found for ID:', payload.sub);
       throw new Error('User not found'); 
     }
 
-    return { id: user._id, email: user.email, role: user.role }; 
+    // ✅ FIX: Return full user object with _id property
+    return user.toObject(); 
   }
 }

@@ -5,5 +5,6 @@ export interface PaginatedResult<T> {
     page: number;
     limit: number;
     totalPages: number;
+    [key: string]: any;
   };
 }
