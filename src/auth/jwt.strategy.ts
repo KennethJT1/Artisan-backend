@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { InjectModel } from '@nestjs/mongoose'; 
-import { Model } from 'mongoose'; 
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { StrategyOptions } from 'passport-jwt';
 
@@ -29,16 +29,45 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super(options);
   }
 
-  async validate(payload: any) { 
-    
+  // async validate(payload: any) {
+
+  //   const user = await this.userModel.findById(payload.sub).select('-password');
+
+  //   if (!user) {
+  //     console.error('❌ User not found for ID:', payload.sub);
+  //     throw new Error('User not found');
+  //   }
+
+  //   // ✅ FIX: Return full user object with _id property
+  //   return user.toObject();
+  // }
+
+  async validate(payload: any) {
+    console.log('JWT VALIDATE - Received payload:', payload);
+
     const user = await this.userModel.findById(payload.sub).select('-password');
-    
-    if (!user) {
-      console.error('❌ User not found for ID:', payload.sub);
-      throw new Error('User not found'); 
+
+    console.log('JWT VALIDATE - Looking for user ID:', payload.sub);
+    console.log('JWT VALIDATE - Found user?', user ? 'YES' : 'NO');
+    if (user) {
+      console.log('JWT VALIDATE - User role:', user.role);
+      console.log('JWT VALIDATE - User email:', user.email);
+    } else {
+      console.log('JWT VALIDATE - User NOT found in database');
     }
 
-    // ✅ FIX: Return full user object with _id property
-    return user.toObject(); 
+    if (!user) {
+      throw new UnauthorizedException(
+        'You are not authorized to perform this action.',
+      );
+    }
+
+    // return user.toObject();
+    return {
+      _id: user.id,
+      email: user.email,
+      role: user.role,
+      userName: user.firstName,
+    };
   }
 }

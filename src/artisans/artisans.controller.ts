@@ -21,7 +21,7 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
-import type { UserDocument } from 'src/users/schemas/user.schema';
+import { UserRole, type UserDocument } from 'src/users/schemas/user.schema';
 
 @Controller('artisans')
 export class ArtisansController {
@@ -31,21 +31,24 @@ export class ArtisansController {
   ) {}
 
   // ✅ NEW: Get current artisan's profile
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
   @Get('me')
   async getMyProfile(@GetUser() user: any) {
     return this.artisansService.findByUserId(user._id);
   }
 
   // ✅ NEW: Update profile
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
   @Patch('me')
   async updateMyProfile(@GetUser() user: any, @Body() updateData: any) {
     return this.artisansService.updateByUserId(user._id, updateData);
   }
 
   // ✅ NEW: Update availability
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
   @Patch('me/availability')
   async updateAvailability(
     @GetUser() user: any,
@@ -55,21 +58,24 @@ export class ArtisansController {
   }
 
   // ✅ NEW: Get artisan's bookings
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
   @Get('me/bookings')
   async getMyBookings(@GetUser() user: any, @Query('status') status?: string) {
     return this.artisansService.getBookingsByArtisan(user._id, status);
   }
 
   // ✅ NEW: Get earnings summary
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
   @Get('me/earnings/summary')
   async getEarningsSummary(@GetUser() user: any) {
     return this.artisansService.getEarningsSummary(user._id);
   }
 
   // ✅ NEW: Get earnings history
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
   @Get('me/earnings/history')
   async getEarningsHistory(
     @GetUser() user: any,
@@ -84,7 +90,8 @@ export class ArtisansController {
   }
 
   // ✅ NEW: Get reviews
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
   @Get('me/reviews')
   async getMyReviews(
     @GetUser() user: any,
@@ -161,7 +168,8 @@ export class ArtisansController {
     return this.artisansService.apply(artisanDataWithUrls);
   }
 
-  @Get('pending')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
   async findPending(
     @Query('page') page = 1,
     @Query('limit') limit = 10,
