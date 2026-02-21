@@ -57,9 +57,15 @@ export class AuthService {
       loginDto.password,
       user.password,
     );
-    if (!isPasswordValid) throw new UnauthorizedException('Invalid credentials');
+    if (!isPasswordValid)
+      throw new UnauthorizedException('Invalid credentials');
 
-    const payload = { email: user.email, sub: user._id, role: user.role };
+    const payload = {
+      id: user._id,
+      email: user.email,
+      sub: user._id,
+      role: user.role,
+    };
     return {
       token: this.jwtService.sign(payload),
       user: {

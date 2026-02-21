@@ -17,6 +17,8 @@ import { ArtisansModule } from './artisans/artisans.module';
 import { CategoriesModule } from './category/category.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { AdminModule } from './admin/admin.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { FavouritesModule } from './favourites/favourites.module';
 
 @Module({
   imports: [
@@ -52,6 +54,8 @@ import { AdminModule } from './admin/admin.module';
     CategoriesModule,
     CloudinaryModule,
     AdminModule,
+    FavouritesModule,
+    ReviewsModule,
   ],
 })
 export class AppModule {}
