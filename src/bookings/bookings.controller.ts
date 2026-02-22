@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateBookingDto } from './dto/create-booking.dto';
+import { UpdateBookingDto } from './dto/update-booking.dto';
 
 @Controller('bookings')
 @UseGuards(JwtAuthGuard)
@@ -18,26 +20,35 @@ export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Post()
-  create(@Req() req, @Body() createBookingDto: any) {
+  @UseGuards(JwtAuthGuard)
+  create(@Req() req, @Body() createBookingDto: CreateBookingDto) {
     return this.bookingsService.create(req.user.id, createBookingDto);
   }
 
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  update(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() updateBookingDto: UpdateBookingDto,
+  ) {
+    return this.bookingsService.update(id, req.user.id, updateBookingDto);
+  }
+
   @Get()
+  @UseGuards(JwtAuthGuard)
   findMyBookings(@Req() req) {
     return this.bookingsService.findMyBookings(req.user.id);
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   findOne(@Req() req, @Param('id') id: string) {
     return this.bookingsService.findOne(id, req.user.id);
   }
 
-  @Patch(':id')
-  update(@Req() req, @Param('id') id: string, @Body() updateBookingDto: any) {
-    return this.bookingsService.update(id, req.user.id, updateBookingDto);
-  }
-
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   remove(@Req() req, @Param('id') id: string) {
     return this.bookingsService.remove(id, req.user.id);
   }

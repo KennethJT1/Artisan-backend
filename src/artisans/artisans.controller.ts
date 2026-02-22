@@ -35,7 +35,7 @@ export class ArtisansController {
   @Roles(UserRole.ARTISAN)
   @Get('me')
   async getMyProfile(@GetUser() user: any) {
-    return this.artisansService.findByUserId(user._id);
+    return this.artisansService.findByUserId(user.id);
   }
 
   // ✅ NEW: Update profile
@@ -43,7 +43,7 @@ export class ArtisansController {
   @Roles(UserRole.ARTISAN)
   @Patch('me')
   async updateMyProfile(@GetUser() user: any, @Body() updateData: any) {
-    return this.artisansService.updateByUserId(user._id, updateData);
+    return this.artisansService.updateByUserId(user.id, updateData);
   }
 
   // ✅ NEW: Update availability
@@ -54,7 +54,7 @@ export class ArtisansController {
     @GetUser() user: any,
     @Body('isAvailable') isAvailable: boolean,
   ) {
-    return this.artisansService.updateAvailability(user._id, isAvailable);
+    return this.artisansService.updateAvailability(user.id, isAvailable);
   }
 
   // ✅ NEW: Get artisan's bookings
@@ -62,7 +62,7 @@ export class ArtisansController {
   @Roles(UserRole.ARTISAN)
   @Get('me/bookings')
   async getMyBookings(@GetUser() user: any, @Query('status') status?: string) {
-    return this.artisansService.getBookingsByArtisan(user._id, status);
+    return this.artisansService.getBookingsByArtisan(user.id, status);
   }
 
   // ✅ NEW: Get earnings summary
@@ -70,7 +70,7 @@ export class ArtisansController {
   @Roles(UserRole.ARTISAN)
   @Get('me/earnings/summary')
   async getEarningsSummary(@GetUser() user: any) {
-    return this.artisansService.getEarningsSummary(user._id);
+    return this.artisansService.getEarningsSummary(user.id);
   }
 
   // ✅ NEW: Get earnings history
@@ -83,7 +83,7 @@ export class ArtisansController {
     @Query('limit') limit = 10,
   ) {
     return this.artisansService.getEarningsHistory(
-      user._id,
+      user.id,
       Number(page),
       Number(limit),
     );
@@ -99,7 +99,7 @@ export class ArtisansController {
     @Query('limit') limit = 10,
   ) {
     return this.artisansService.getReviewsByArtisan(
-      user._id,
+      user.id,
       Number(page),
       Number(limit),
     );
@@ -168,8 +168,9 @@ export class ArtisansController {
     return this.artisansService.apply(artisanDataWithUrls);
   }
 
+  @Post('find-pending')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ARTISAN)
+  @Roles(UserRole.ADMIN)
   async findPending(
     @Query('page') page = 1,
     @Query('limit') limit = 10,
@@ -194,7 +195,8 @@ export class ArtisansController {
     return this.artisansService.updateStatus(id, status);
   }
 
-  // bulkCreate fixed
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   @Post('bulk-create')
   async bulkCreate(@Body() artisansData: Partial<Artisan>[]) {
     if (!Array.isArray(artisansData)) {

@@ -31,42 +31,37 @@ export class ArtisansService {
   /**
    * Find artisan by user ID
    */
-async findByUserId(userId: any): Promise<ArtisanDocument> {
-  
-  // Try to find user first
-  const userModel = this.connection.model('User');
-  const user = await userModel.findById(userId);
-  
-  if (!user) {
-    console.error("❌ User not found!");
-    throw new NotFoundException('User not found');
-  }
-  
- 
-  
-  // Find artisan
-  const artisan = await this.artisanModel
-    .findOne({ 
-      user: new Types.ObjectId(userId) 
-      // Remove status filter temporarily for debugging
-    })
-    .populate('category');
-  
-  if (!artisan) {
-    console.error("❌ Artisan not found for user:", userId);
-    
-    // Check if ANY artisan exists for this user ID (string comparison)
-    const anyArtisan = await this.artisanModel.findOne({
-      user: userId.toString()
-    });
-    
-    
-    throw new NotFoundException('Artisan profile not found');
-  }
+  async findByUserId(userId: any): Promise<ArtisanDocument> {
+    // Try to find user first
+    // const userModel = this.connection.model('User');
+    const user = await this.userModel.findById(userId);
 
-  
-  return artisan;
-}
+    if (!user) {
+      console.error('❌ User not found!');
+      throw new NotFoundException('User not found');
+    }
+
+    // Find artisan
+    const artisan = await this.artisanModel
+      .findOne({
+        user: new Types.ObjectId(userId),
+        // Remove status filter temporarily for debugging
+      })
+      .populate('category');
+
+    if (!artisan) {
+      console.error('❌ Artisan not found for user:', userId);
+
+      // Check if ANY artisan exists for this user ID (string comparison)
+      const anyArtisan = await this.artisanModel.findOne({
+        user: userId.toString(),
+      });
+
+      throw new NotFoundException('Artisan profile not found');
+    }
+
+    return artisan;
+  }
 
   /**
    * Update artisan profile by user ID
@@ -398,6 +393,7 @@ async findByUserId(userId: any): Promise<ArtisanDocument> {
       this.artisanModel
         .find({ status: 'approved' })
         .populate('category')
+        .populate('user', 'firstName lastName') 
         .skip(skip)
         .limit(limit),
       this.artisanModel.countDocuments({ status: 'approved' }),
