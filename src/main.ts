@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { ConfigService } from '@nestjs/config';
 import * as bodyParser from 'body-parser';
 import { ValidationPipe } from '@nestjs/common';
+import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,6 +14,7 @@ async function bootstrap() {
   app.use('/stripe/webhook', bodyParser.raw({ type: 'application/json' }));
 
   app.use(bodyParser.json());
+  app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
   app.use(helmet());
@@ -23,6 +25,10 @@ async function bootstrap() {
     }),
   );
   app.enableCors();
+  //   app.enableCors({
+  //   origin: 'http://localhost:3000', // Next.js URL
+  //   credentials: true,
+  // });
 
   const port = configService.get<number>('PORT') || 3000;
   await app.listen(port);
