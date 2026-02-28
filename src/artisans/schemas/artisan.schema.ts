@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Category } from 'src/category/schemas/category.schema';
-import { User } from 'src/users/schemas/user.schema';
+import { User, UserDocument } from 'src/users/schemas/user.schema';
 
 export type ArtisanDocument = Artisan & Document;
 
@@ -13,7 +13,7 @@ export class Artisan {
     required: true,
     unique: true,
   })
-  user: Types.ObjectId | any;
+  user: Types.ObjectId | UserDocument;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,

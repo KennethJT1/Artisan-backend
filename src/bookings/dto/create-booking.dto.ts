@@ -12,8 +12,9 @@ import {
 import { BookingStatus } from '../schemas/bookings.schema';
 
 export class CreateBookingDto {
+  @IsOptional()
   @IsMongoId()
-  customerId: string;
+  customerId?: string;
 
   @IsMongoId()
   artisanId: string;
@@ -27,9 +28,10 @@ export class CreateBookingDto {
   @IsString()
   time: string;
 
-  @IsString()
+  @IsNumber()
   duration: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
   amount?: number;

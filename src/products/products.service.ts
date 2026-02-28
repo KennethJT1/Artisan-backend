@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -59,23 +60,22 @@ export class ProductsService {
     };
   }
 
-  async findOne(id: string): Promise<ProductDocument> {
+  async findOne(id: string) {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Invalid product ID format: ${id}`);
+      throw new NotFoundException(`Invalid product ID: ${id}`);
     }
 
     const product = await this.productModel
       .findById(id)
-      .populate('category')
+      .populate('category', 'name')
+      .populate('user', 'firstName lastName email')
       .exec();
-    if (!product) {
-      throw new NotFoundException(`Product with ID ${id} not found`);
-    }
 
+    if (!product) throw new NotFoundException(`Product ${id} not found`);
     return product;
   }
 
-  async create(data: Partial<Product>) {
+  async create(data: Partial<Product>, userId: string) {
     if (data.category) {
       let categoryId: string;
 
@@ -109,16 +109,28 @@ export class ProductsService {
       data.condition = data.condition.toLowerCase();
     }
 
-    const newProduct = new this.productModel(data);
-    return newProduct.save();
+    const product = new this.productModel({
+      ...data,
+      category: new Types.ObjectId(data.category),
+      seller: new Types.ObjectId(userId),
+    });
+
+    return product.save();
   }
 
   async update(
     id: string,
     updates: Partial<Product>,
-  ): Promise<ProductDocument> {
+    userId: any,
+  ): Promise<any> {
     if (!Types.ObjectId.isValid(id)) {
       throw new NotFoundException(`Invalid product ID format: ${id}`);
+    }
+    const product = await this.productModel.findById(id);
+    if (!product) throw new NotFoundException(`Product not found`);
+
+    if (product.seller !== userId) {
+      throw new ForbiddenException(`You don't own this product`);
     }
 
     if (updates.category) {
@@ -154,7 +166,7 @@ export class ProductsService {
       updates.condition = updates.condition.toLowerCase();
     }
 
-    const updatedProduct = await this.productModel
+    return await this.productModel
       .findByIdAndUpdate(
         id,
         { $set: updates },
@@ -162,24 +174,22 @@ export class ProductsService {
       )
       .populate('category')
       .exec();
-
-    if (!updatedProduct) {
-      throw new NotFoundException(`Product with ID ${id} not found`);
-    }
-
-    return updatedProduct;
   }
 
-  async delete(id: string): Promise<{ message: string }> {
+  async delete(id: string, userId: string) {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Invalid product ID format: ${id}`);
+      throw new NotFoundException(`Invalid product ID`);
     }
 
-    const result = await this.productModel.findByIdAndDelete(id);
-    if (!result) {
-      throw new NotFoundException(`Product with ID ${id} not found`);
+    const product = await this.productModel.findById(id);
+    if (!product) throw new NotFoundException(`Product not found`);
+
+    // Only the owner can delete
+    if (product.seller !== userId) {
+      throw new ForbiddenException(`You don't own this product`);
     }
 
+    await this.productModel.findByIdAndDelete(id);
     return { message: 'Product deleted successfully' };
   }
 

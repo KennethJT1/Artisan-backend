@@ -8,11 +8,15 @@ import {
   Delete,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { UserRole } from 'src/users/schemas/user.schema';
+import { Roles } from 'src/auth/decorators/roles.decorator';
 
 @Controller('bookings')
 @UseGuards(JwtAuthGuard)
@@ -26,7 +30,8 @@ export class BookingsController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN, UserRole.CUSTOMER)
   update(
     @Req() req,
     @Param('id') id: string,
@@ -37,8 +42,18 @@ export class BookingsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  findMyBookings(@Req() req) {
-    return this.bookingsService.findMyBookings(req.user.id);
+  findMyBookings(
+    @Req() req,
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Query('status') status?: any,
+  ) {
+    return this.bookingsService.findMyBookings(
+      req.user.id,
+      Number(page) || 1,
+      Number(limit) || 10,
+      status,
+    );
   }
 
   @Get(':id')
@@ -51,6 +66,13 @@ export class BookingsController {
   @UseGuards(JwtAuthGuard)
   remove(@Req() req, @Param('id') id: string) {
     return this.bookingsService.remove(id, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Delete()
+  async deleteAllBookings() {
+    return await this.bookingsService.deleteAll();
   }
 
   // Optional - customer completes + reviews in one step

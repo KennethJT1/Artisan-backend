@@ -45,9 +45,12 @@ export class ArtisansService {
     const artisan = await this.artisanModel
       .findOne({
         user: new Types.ObjectId(userId),
-        // Remove status filter temporarily for debugging
       })
-      .populate('category');
+      .populate('category')
+      .populate({
+        path: 'user',
+        select: 'firstName lastName',
+      });
 
     if (!artisan) {
       console.error('❌ Artisan not found for user:', userId);
@@ -393,7 +396,7 @@ export class ArtisansService {
       this.artisanModel
         .find({ status: 'approved' })
         .populate('category')
-        .populate('user', 'firstName lastName') 
+        .populate('user', 'firstName lastName')
         .skip(skip)
         .limit(limit),
       this.artisanModel.countDocuments({ status: 'approved' }),

@@ -61,38 +61,109 @@ export class BookingsService {
 
     // ✅ 4. Calculate commission (10%)
     const commissionRate = artisan.commissionRate;
-    const amount = artisan.hourlyRate * dto?.duration;
-    const commission = amount * commissionRate;
+    const actualAmount = artisan.hourlyRate * dto?.duration;
+    const commission = actualAmount * commissionRate;
+    const amount = actualAmount - commission;
 
-    // ✅ 5. Determine booking status
-    const bookingDate = new Date(dto.date);
-    const today = new Date();
-
-    const status =
-      bookingDate > today ? BookingStatus.UPCOMING : BookingStatus.PENDING;
-
+    const status = BookingStatus.PENDING;
     // ✅ 6. Create booking
     const booking = await this.bookingModel.create({
       ...dto,
-      customerId,
+      customerId: new Types.ObjectId(customerId),
+      artisanId: new Types.ObjectId(dto.artisanId),
+      amount,
       commission,
       status,
     });
 
     // ✅ 7. Return populated booking
-    return this.bookingModel
+    const bookingData = await this.bookingModel
       .findById(booking._id)
       .populate('customerId', 'firstName lastName email')
-      .populate('artisanId', 'firstName lastName email');
+      .populate({
+        path: 'artisanId',
+        populate: { path: 'user', select: 'firstName lastName email' },
+      })
+      .lean();
+
+    // Flatten artisanId
+    const result = {
+      ...bookingData,
+      artisanId: bookingData?.artisanId
+        ? {
+            firstName: bookingData.artisanId.user.firstName,
+            lastName: bookingData.artisanId.user.lastName,
+            email: bookingData.artisanId.user.email,
+          }
+        : null,
+    };
+
+    return result;
   }
 
-  async findMyBookings(customerId: string): Promise<Booking[]> {
-    return this.bookingModel
-      .find({ customer: customerId })
-      .populate('artisan', 'firstName lastName category') // adjust fields
-      .sort({ date: -1 })
-      .exec();
+
+async findMyBookings(
+  customerId: string,
+  page: number = 1,
+  limit: number = 10,
+  status?: any,
+) {
+  const skip = (page - 1) * limit;
+
+  // Build filter
+  const filter: any = { customerId: new Types.ObjectId(customerId), isDeleted: false };
+
+  if (status) {
+    const statuses = status
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => Object.values(BookingStatus).includes(s));
+
+    if (statuses.length) filter.status = { $in: statuses };
   }
+
+  // Fetch paginated bookings from latest to oldest
+  const bookings = await this.bookingModel
+    .find(filter)
+    .populate('customerId', 'firstName lastName email')
+    .populate({
+      path: 'artisanId',
+      populate: { path: 'user', select: 'firstName lastName email' },
+    })
+    .sort({ updatedAt: -1 }) // latest updated first
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  const total = await this.bookingModel.countDocuments(filter);
+
+  const data = bookings.map((b) => ({
+    ...b,
+    customerId: {
+      firstName: b.customerId.firstName,
+      lastName: b.customerId.lastName,
+      email: b.customerId.email,
+    },
+    artisanId: b.artisanId
+      ? {
+          commissionRate: b.artisanId.commissionRate,
+          firstName: b.artisanId.user.firstName,
+          lastName: b.artisanId.user.lastName,
+          email: b.artisanId.user.email,
+        }
+      : null,
+  }));
+
+  return {
+    data,
+    meta: {
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    },
+  };
+}
 
   async findOne(bookingId: string, userId: string) {
     if (!Types.ObjectId.isValid(bookingId))
@@ -100,29 +171,44 @@ export class BookingsService {
 
     const booking = await this.bookingModel
       .findById(bookingId)
-      .populate('customerId', 'name email')
-      .populate('artisanId', 'name email');
+      .populate('customerId', 'firstName lastName email')
+      .populate({
+        path: 'artisanId',
+        populate: { path: 'user', select: 'firstName lastName email' },
+      })
+      .lean();
 
     if (!booking) throw new NotFoundException('Booking not found');
 
     const isOwner =
-      booking.customerId.toString() === userId ||
-      booking.artisanId.toString() === userId;
+      (booking.customerId && booking.customerId._id.toString() === userId) ||
+      (booking.artisanId && booking.artisanId.user._id.toString() === userId);
 
     if (!isOwner) throw new ForbiddenException('Access denied');
 
-    return booking;
+    return {
+      ...booking,
+      customerId: {
+        firstName: booking.customerId.firstName,
+        lastName: booking.customerId.lastName,
+        email: booking.customerId.email,
+      },
+      artisanId: booking.artisanId
+        ? {
+            commissionRate: booking.artisanId.commissionRate,
+            firstName: booking.artisanId.user.firstName,
+            lastName: booking.artisanId.user.lastName,
+            email: booking.artisanId.user.email,
+          }
+        : null,
+    };
   }
 
   async update(bookingId: string, userId: string, dto: UpdateBookingDto) {
     const booking = await this.bookingModel.findById(bookingId);
 
-    // ✅ 1. Booking must exist
-    if (!booking) {
-      throw new NotFoundException('Booking not found');
-    }
+    if (!booking) throw new NotFoundException('Booking not found');
 
-    // ✅ 2. Only customer or artisan can update
     const isCustomer = booking.customerId.toString() === userId;
     const isArtisan = booking.artisanId.toString() === userId;
 
@@ -132,7 +218,6 @@ export class BookingsService {
       );
     }
 
-    // ✅ 3. Prevent updates on finished bookings
     if (
       booking.status === BookingStatus.COMPLETED ||
       booking.status === BookingStatus.CANCELLED
@@ -142,7 +227,7 @@ export class BookingsService {
       );
     }
 
-    // ✅ 4. Prevent reschedule conflicts
+    // Check for reschedule conflicts
     if (dto.date || dto.time) {
       const newDate = dto.date ?? booking.date;
       const newTime = dto.time ?? booking.time;
@@ -152,7 +237,7 @@ export class BookingsService {
         artisanId: booking.artisanId,
         date: newDate,
         time: newTime,
-        status: { $in: ['pending', 'confirmed', 'upcoming'] },
+        status: { $in: ['pending', 'confirmed'] },
       });
 
       if (conflict) {
@@ -162,43 +247,52 @@ export class BookingsService {
       }
     }
 
-    // ✅ 5. Recalculate commission if amount updated
-    if (dto.amount !== undefined) {
-      dto['commission'] = dto.amount * 0.1;
+    // Recalculate amount if duration changes
+    let amount = booking.amount;
+    let commission = booking.commission;
+    if (dto.duration && dto.duration !== booking.duration) {
+      const artisan = await this.artisanModel.findById(booking.artisanId); // use booking.artisanId
+      if (!artisan) throw new NotFoundException('Artisan not found');
+
+      const actualAmount = artisan.hourlyRate * dto.duration;
+      commission = actualAmount * artisan.commissionRate;
+      amount = actualAmount - commission;
     }
 
-    // ✅ 6. Restrict status changes (business rules)
-    if (dto.status) {
-      const allowedTransitions = {
-        pending: ['cancelled', 'confirmed'],
-        confirmed: ['upcoming', 'cancelled'],
-        upcoming: ['completed', 'cancelled'],
-      };
+    // Merge updates correctly
+    Object.assign(booking, { ...dto, amount, commission });
 
-      const current = booking.status;
-      const allowed = allowedTransitions[current] || [];
-
-      if (!allowed.includes(dto.status)) {
-        throw new BadRequestException(
-          `Cannot change status from ${current} to ${dto.status}`,
-        );
-      }
-    }
-
-    // ✅ 7. Apply updates
-    Object.assign(booking, dto);
     await booking.save();
 
-    // ✅ 8. Return populated booking
-    return this.bookingModel
+    const updatedBooking = await this.bookingModel
       .findById(bookingId)
       .populate('customerId', 'firstName lastName email')
-      .populate('artisanId', 'firstName lastName email');
+      .populate({
+        path: 'artisanId',
+        populate: { path: 'user', select: 'firstName lastName email' },
+      })
+      .lean();
+
+    return {
+      ...updatedBooking,
+      customerId: {
+        firstName: updatedBooking?.customerId.firstName,
+        lastName: updatedBooking?.customerId.lastName,
+        email: updatedBooking?.customerId.email,
+      },
+      artisanId: updatedBooking?.artisanId
+        ? {
+            commissionRate: updatedBooking?.artisanId.commissionRate,
+            firstName: updatedBooking?.artisanId.user.firstName,
+            lastName: updatedBooking?.artisanId.user.lastName,
+            email: updatedBooking?.artisanId.user.email,
+          }
+        : null,
+    };
   }
 
   async remove(bookingId: string, userId: string) {
     const booking = await this.bookingModel.findById(bookingId);
-
     if (!booking) throw new NotFoundException('Booking not found');
 
     if (booking.customerId.toString() !== userId) {
@@ -209,9 +303,19 @@ export class BookingsService {
       throw new BadRequestException('Completed bookings cannot be deleted');
     }
 
-    await booking.deleteOne();
+    // Soft delete
+    booking.isDeleted = true;
+    await booking.save();
 
-    return { message: 'Booking deleted successfully' };
+    return { message: 'Booking deleted (soft) successfully' };
+  }
+
+  async deleteAll() {
+    // Deletes all bookings
+    const result = this.bookingModel.deleteMany({});
+    return {
+      message: 'All bookings deleted successfully',
+    };
   }
 
   // Optional: customer marks as completed + adds rating/review
@@ -221,10 +325,7 @@ export class BookingsService {
     reviewData: { rating: number; review?: string },
   ) {
     const booking = await this.findOne(id, userId);
-    if (
-      booking.status !== BookingStatus.CONFIRMED &&
-      booking.status !== BookingStatus.UPCOMING
-    ) {
+    if (booking.status !== BookingStatus.CONFIRMED) {
       throw new BadRequestException('Booking cannot be completed yet');
     }
 

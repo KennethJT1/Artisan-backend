@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { ConfigService } from '@nestjs/config';
 import * as bodyParser from 'body-parser';
 import { ValidationPipe } from '@nestjs/common';
-import * as cookieParser from 'cookie-parser';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -24,11 +24,18 @@ async function bootstrap() {
       limit: 100,
     }),
   );
-  app.enableCors();
-  //   app.enableCors({
-  //   origin: 'http://localhost:3000', // Next.js URL
-  //   credentials: true,
-  // });
+
+  const nodeEnv = configService.get<string>('NODE_ENV');
+
+  const origin =
+    nodeEnv === 'development'
+      ? configService.get<string>('CLIENT_URL_DEV')
+      : configService.get<string>('CLIENT_URL');
+
+  app.enableCors({
+    origin,
+    credentials: true,
+  });
 
   const port = configService.get<number>('PORT') || 3000;
   await app.listen(port);

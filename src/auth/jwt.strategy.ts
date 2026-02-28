@@ -19,8 +19,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new Error('JWT secret is not defined in configuration');
     }
 
+    const cookieExtractor = (req: any) => {
+      return req?.cookies?.token; // name of cookie
+    };
+
     const options: StrategyOptions = {
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([cookieExtractor]),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
       passReqToCallback: false,
@@ -43,18 +47,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // }
 
   async validate(payload: any) {
-    console.log('JWT VALIDATE - Received payload:', payload);
-
     const user = await this.userModel.findById(payload.sub).select('-password');
-
-    console.log('JWT VALIDATE - Looking for user ID:', payload.sub);
-    console.log('JWT VALIDATE - Found user?', user ? 'YES' : 'NO');
-    if (user) {
-      console.log('JWT VALIDATE - User role:', user.role);
-      console.log('JWT VALIDATE - User email:', user.email);
-    } else {
-      console.log('JWT VALIDATE - User NOT found in database');
-    }
 
     if (!user) {
       throw new UnauthorizedException(

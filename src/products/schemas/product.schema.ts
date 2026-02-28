@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Category } from 'src/category/schemas/category.schema';
+import { User } from 'src/users/schemas/user.schema';
 
 export type ProductDocument = Product & Document;
 
@@ -18,6 +19,13 @@ export class Product {
     required: true,
   })
   category: Types.ObjectId | Category;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  })
+  seller: Types.ObjectId | any;
 
   @Prop({ required: true })
   price: number;
@@ -70,9 +78,6 @@ export class Product {
 
   @Prop({ type: [String], default: [] })
   tags: string[];
-
-  @Prop({ required: true, ref: 'User' })
-  seller: string;
 
   @Prop({ default: 'active', enum: ['active', 'sold', 'pending'] })
   status: string;

@@ -52,7 +52,7 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.CUSTOMER)
+  @Roles(UserRole.CUSTOMER, UserRole.ADMIN)
   @Get('me')
   async getMyProfile(@GetUser() user: any) {
     return this.usersService.findOneByEmail(user.email);
