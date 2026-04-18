@@ -204,4 +204,9 @@ export class ArtisansController {
     }
     return this.artisansService.bulkCreate(artisansData);
   }
+
+  @Get(':id/public-profile')
+  async viewPublicProfile(@Param('id') id: string) {
+    return this.artisansService.getPublicProfile(id);
+  }
 }

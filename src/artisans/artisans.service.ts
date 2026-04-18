@@ -484,4 +484,81 @@ export class ArtisansService {
     });
     return this.artisanModel.populate(inserted, { path: 'category' });
   }
+
+  async getPublicProfile(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid artisan ID');
+    }
+
+    const artisan = await this.artisanModel
+      .findById(id)
+      .populate('category', 'name')
+      .populate('user', 'firstName lastName')
+      .lean();
+
+    if (!artisan || artisan.status !== 'approved') {
+      throw new NotFoundException('Artisan not found');
+    }
+
+    // ✅ FIX: Proper typing for populated user (lean object)
+    const user = artisan.user as {
+      firstName?: string;
+      lastName?: string;
+    };
+
+    const category = artisan.category as {
+      name?: string;
+    };
+
+    const paymentModel = this.connection.model('Payment');
+
+    // 🚀 Run queries in parallel (better performance)
+    const [reviews, completedJobs] = await Promise.all([
+      paymentModel.find({
+        artisan: artisan._id,
+        rating: { $exists: true, $ne: null },
+      }),
+      paymentModel.countDocuments({
+        artisan: artisan._id,
+        status: 'completed',
+      }),
+    ]);
+
+    const totalReviews = reviews.length;
+
+    const averageRating =
+      totalReviews > 0
+        ? (
+            reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / totalReviews
+          ).toFixed(1)
+        : '0.0';
+
+    // ✅ Increment profile views (non-blocking)
+    this.artisanModel
+      .updateOne({ _id: artisan._id }, { $inc: { profileViews: 1 } })
+      .exec();
+
+    return {
+      id: artisan._id,
+
+      name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+
+      category: category?.name || null,
+
+      description: artisan.description,
+      experience: artisan.experience,
+      hourlyRate: artisan.hourlyRate,
+      location: artisan.location,
+      status: artisan.status,
+
+      // skills: artisan.skills || [],
+      portfolio: artisan.portfolio || [],
+      certifications: artisan.certifications,
+      // ⭐ UI METRICS
+      rating: averageRating,
+      // totalReviews,
+      // completedJobs,
+      // completionRate: artisan.completionRate,
+    };
+  }
 }
