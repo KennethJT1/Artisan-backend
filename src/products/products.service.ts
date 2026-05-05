@@ -68,7 +68,7 @@ export class ProductsService {
     const product = await this.productModel
       .findById(id)
       .populate('category', 'name')
-      .populate('user', 'firstName lastName email')
+      .populate('seller', 'firstName lastName email')
       .exec();
 
     if (!product) throw new NotFoundException(`Product ${id} not found`);
