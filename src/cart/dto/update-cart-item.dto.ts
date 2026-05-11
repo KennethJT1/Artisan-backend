@@ -1,4 +1,4 @@
-import { IsString, IsNumber, Min } from 'class-validator';
+import { IsString, IsNumber, Min, IsOptional } from 'class-validator';
 
 export class UpdateCartItemDto {
   @IsString()
@@ -7,4 +7,8 @@ export class UpdateCartItemDto {
   @IsNumber()
   @Min(1)
   quantity: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxQuantity?: number;
 }

@@ -15,11 +15,29 @@ export class CartItem {
   @Prop({ required: true })
   unitPrice: number;
 
+  @Prop({ type: Number, default: 0 })
+  discount: number;
+
   @Prop({ required: true })
   quantity: number;
 
   @Prop({ required: true })
   totalPrice: number;
+
+  @Prop({ type: String, default: null })
+  sku: string;
+
+  @Prop({ type: Object, default: {} })
+  variant: any;
+
+  @Prop({ type: Number, default: 0 })
+  stock: number;
+
+  @Prop({ type: Boolean, default: true })
+  isAvailable: boolean;
+
+  @Prop({ type: Date, default: Date.now })
+  addedAt: Date;
 }
 
 export const CartItemSchema = SchemaFactory.createForClass(CartItem);

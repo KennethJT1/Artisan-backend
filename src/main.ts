@@ -18,10 +18,25 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
   app.use(helmet());
+  
+  // Global rate limiting - generous for development
   app.use(
     rateLimit({
-      windowMs: 15 * 60 * 1000,
-      limit: 100,
+      windowMs: 15 * 60 * 1000,  // 15 minutes
+      limit: 1000,               // 1000 requests per 15 min (was 100)
+      skip: (req) => req.path === '/health', // Skip health checks
+      message: 'Too many requests from this IP, please try again later.',
+    }),
+  );
+
+  // Stricter rate limiting for auth endpoints only
+  app.use(
+    '/api/auth/login',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,  // 15 minutes
+      limit: 10,                 // 10 login attempts per 15 min
+      message: 'Too many login attempts, please try again later.',
+      skipSuccessfulRequests: true, // Don't count successful logins
     }),
   );
 

@@ -7,13 +7,13 @@ import {
   Patch,
   Param,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
-import { AddToCartDto } from './dto/add-to-cart.dto';
-// import { AddMultipleToCartDto } from './dto/add-multiple-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { User } from '../common/decorators/user.decorator'; // Ensure this path is correct and file exists
+import { User } from '../common/decorators/user.decorator';
 
 @Controller('cart')
 @UseGuards(JwtAuthGuard)
@@ -28,19 +28,22 @@ export class CartController {
   @Post('items')
   async addToCart(
     @User() user: { id: string },
-    @Body() addMultipleToCartDto: import('./dto/add-multiple-to-cart.dto').AddMultipleToCartDto,
+    @Body()
+    addMultipleToCartDto: import('./dto/add-multiple-to-cart.dto').AddMultipleToCartDto,
   ) {
-    // ValidationPipe will enforce DTO constraints
-    return await this.cartService.addMultipleToCart(user.id, addMultipleToCartDto.items);
+    return await this.cartService.addMultipleToCart(
+      user.id,
+      addMultipleToCartDto.items,
+    );
   }
 
-@Patch('items')
-async updateQuantity(
-  @User() user: { id: string },
-  @Body() body: { items: UpdateCartItemDto[] },
-) {
-  return await this.cartService.updateMultiple(user.id, body.items);
-}
+  @Patch('items')
+  async updateQuantity(
+    @User() user: { id: string },
+    @Body() body: { items: UpdateCartItemDto[] },
+  ) {
+    return await this.cartService.updateMultiple(user.id, body.items);
+  }
 
   @Delete('items/:productId')
   async removeItem(
@@ -51,9 +54,21 @@ async updateQuantity(
   }
 
   @Delete('clear')
+  @HttpCode(HttpStatus.OK)
   async clearCart(@User() user: { id: string }) {
     return await this.cartService.clearCart(user.id);
   }
 
-  // Checkout endpoint will be refactored in next step
+  @Post('coupon')
+  async applyCoupon(
+    @User() user: { id: string },
+    @Body() body: { couponCode: string },
+  ) {
+    return await this.cartService.applyCoupon(user.id, body.couponCode);
+  }
+
+  @Delete('coupon')
+  async removeCoupon(@User() user: { id: string }) {
+    return await this.cartService.removeCoupon(user.id);
+  }
 }
