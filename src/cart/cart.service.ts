@@ -1,364 +1,122 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  Inject,
-  forwardRef,
-  ConflictException,
-  Logger,
-} from '@nestjs/common';
-import { UpdateCartItemDto } from './dto/update-cart-item.dto';
-import { CartRepository } from './cart.repository';
-import { ProductsService } from '../products/products.service';
-import { Types } from 'mongoose';
-
-// Constants
-const MAX_ITEMS_PER_CART = 100;
-const MAX_QUANTITY_PER_ITEM = 999;
-const TAX_RATE = 0.05; // 5% - adjust based on region
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Cart, CartDocument } from './schemas/cart.schema';
+import { CartItemDto, AddOrUpdateCartItemsDto } from './dto/cart-item.dto';
+import { CartCouponDto } from './dto/cart-coupon.dto';
 
 @Injectable()
 export class CartService {
-  private readonly logger = new Logger(CartService.name);
-
   constructor(
-    private readonly cartRepository: CartRepository,
-    @Inject(forwardRef(() => ProductsService))
-    private readonly productsService: ProductsService,
+    @InjectModel(Cart.name) private cartModel: Model<CartDocument>,
   ) {}
 
-  async addMultipleToCart(
-    userId: string,
-    items: { productId: string; quantity: number; variant?: any }[],
-  ) {
-    if (!Array.isArray(items) || items.length === 0) {
-      throw new BadRequestException('Items array must not be empty');
-    }
-
-    const userObjectId = new Types.ObjectId(userId);
-    let cart = await this.cartRepository.findByUserId(userObjectId);
-
-    if (!cart) {
-      cart = await this.cartRepository.createCart(userObjectId);
-    }
-
-    // Validate total items won't exceed limit
-    if (cart.items.length + items.length > MAX_ITEMS_PER_CART) {
-      throw new BadRequestException(
-        `Cart cannot exceed ${MAX_ITEMS_PER_CART} items. Current: ${cart.items.length}`,
-      );
-    }
-
-    for (const dto of items) {
-      // Validate product
-      const product = await this.productsService.findOne(dto.productId);
-      if (!product)
-        throw new NotFoundException(`Product not found: ${dto.productId}`);
-
-      if (!(product as any).isActive) {
-        throw new ConflictException(
-          `Product "${(product as any).title || (product as any).name}" is no longer available`,
-        );
-      }
-
-      // Validate quantity
-      if (dto.quantity < 1 || dto.quantity > MAX_QUANTITY_PER_ITEM) {
-        throw new BadRequestException(
-          `Quantity must be between 1 and ${MAX_QUANTITY_PER_ITEM}`,
-        );
-      }
-
-      // Check stock
-      const availableStock = (product as any).stock || 0;
-      if (dto.quantity > availableStock) {
-        throw new ConflictException(
-          `Insufficient stock. Available: ${availableStock}`,
-        );
-      }
-
-      // Check if item exists (with variant support)
-      const idx = cart.items.findIndex(
-        (item) =>
-          item.productId.toString() === dto.productId &&
-          JSON.stringify(item.variant) === JSON.stringify(dto.variant || {}),
-      );
-
-      if (idx > -1) {
-        const newQuantity = cart.items[idx].quantity + dto.quantity;
-        if (newQuantity > availableStock) {
-          throw new ConflictException(
-            `Cannot add that quantity. Max available: ${availableStock}`,
-          );
-        }
-        cart.items[idx].quantity = newQuantity;
-        cart.items[idx].totalPrice =
-          cart.items[idx].unitPrice * newQuantity;
-      } else {
-        // Add new item
-        cart.items.push({
-          productId: product._id as Types.ObjectId,
-          name: (product as any).title || (product as any).name,
-          image: Array.isArray((product as any).images)
-            ? (product as any).images[0] || ''
-            : (product as any).image || '',
-          unitPrice: (product as any).price,
-          discount: (product as any).discount || 0,
-          quantity: dto.quantity,
-          totalPrice: (product as any).price * dto.quantity,
-          sku: (product as any).sku || null,
-          variant: dto.variant || {},
-          stock: availableStock,
-          isAvailable: true,
-          addedAt: new Date(),
-        });
-      }
-    }
-
-    await this.cartRepository.save(cart);
-    const totals = this.calculateCartTotals(cart.items);
-    await this.cartRepository.updateCartTotals(userObjectId, totals);
-
-    this.logger.log(`Added ${items.length} item(s) to cart for user ${userId}`);
-
-    return this.formatResponse(true, 'Items added to cart', {
-      ...totals,
-      items: cart.items,
-    });
-  }
-
   async getCart(userId: string) {
-    const cart = await this.cartRepository.findByUserId(
-      new Types.ObjectId(userId),
-    );
-
-    if (!cart || cart.items.length === 0) {
-      return this.formatResponse(true, 'Cart is empty', {
-        items: [],
-        subtotal: 0,
-        discount: 0,
-        tax: 0,
-        total: 0,
-        couponCode: null,
-        itemCount: 0,
-      });
+    let cart = await this.cartModel.findOne({ userId });
+    if (!cart) {
+      cart = await this.cartModel.create({ userId: new Types.ObjectId(userId), items: [] });
     }
-
-    // Validate and refresh item availability
-    await this.validateCartItems(cart);
-
-    const totals = this.calculateCartTotals(cart.items);
-    return this.formatResponse(true, 'Cart fetched', {
-      ...totals,
-      items: cart.items,
-    });
+    return this.formatCart(cart);
   }
 
-  async removeFromCart(userId: string, productId: string) {
-    const cart = await this.cartRepository.findByUserId(
-      new Types.ObjectId(userId),
-    );
-
-    if (!cart) throw new NotFoundException('Cart not found');
-
-    const initialLength = cart.items.length;
-    cart.items = cart.items.filter(
-      (item) => item.productId.toString() !== productId,
-    );
-
-    if (cart.items.length === initialLength) {
-      throw new NotFoundException(`Product ${productId} not found in cart`);
+  async addItems(userId: string, dto: AddOrUpdateCartItemsDto) {
+    let cart = await this.cartModel.findOne({ userId });
+    if (!cart) {
+      cart = await this.cartModel.create({ userId: new Types.ObjectId(userId), items: [] });
     }
-
-    await this.cartRepository.save(cart);
-    const totals = this.calculateCartTotals(cart.items);
-
-    this.logger.log(
-      `Removed product ${productId} from cart for user ${userId}`,
-    );
-
-    return this.formatResponse(true, 'Item removed from cart', {
-      ...totals,
-      items: cart.items,
-    });
-  }
-
-  async updateMultiple(userId: string, items: UpdateCartItemDto[]) {
-    const cart = await this.cartRepository.findByUserId(
-      new Types.ObjectId(userId),
-    );
-    if (!cart) throw new NotFoundException('Cart not found');
-
-    for (const dto of items) {
-      const idx = cart.items.findIndex(
-        (item) => item.productId.toString() === dto.productId,
-      );
-
-      if (idx === -1) continue;
-
-      if (dto.quantity < 1 || dto.quantity > MAX_QUANTITY_PER_ITEM)
-        throw new BadRequestException(
-          `Quantity must be between 1 and ${MAX_QUANTITY_PER_ITEM}`,
-        );
-
-      if (dto.maxQuantity && dto.quantity > dto.maxQuantity) {
-        throw new ConflictException(
-          `Quantity exceeds available stock. Max: ${dto.maxQuantity}`,
-        );
+    for (const item of dto.items) {
+      const idx = cart.items.findIndex(i => i.productId === item.productId);
+      if (idx > -1) {
+        cart.items[idx].quantity += item.quantity;
+      } else {
+        cart.items.push(item as any);
       }
-
-      cart.items[idx].quantity = dto.quantity;
-      cart.items[idx].totalPrice = cart.items[idx].unitPrice * dto.quantity;
     }
-
-    await this.cartRepository.save(cart);
-    const totals = this.calculateCartTotals(cart.items);
-
-    this.logger.log(
-      `Updated ${items.length} item(s) in cart for user ${userId}`,
-    );
-
-    return this.formatResponse(true, 'Cart updated', {
-      ...totals,
-      items: cart.items,
-    });
+    this.calculateTotals(cart);
+    await cart.save();
+    return this.formatCart(cart);
   }
 
+  async updateItems(userId: string, dto: AddOrUpdateCartItemsDto) {
+    let cart = await this.cartModel.findOne({ userId });
+    if (!cart) throw new NotFoundException('Cart not found');
+    for (const item of dto.items) {
+      const idx = cart.items.findIndex(i => i.productId === item.productId);
+      if (idx > -1) {
+        cart.items[idx].quantity = item.quantity;
+        cart.items[idx].price = item.price;
+        cart.items[idx].title = item.title;
+        cart.items[idx].image = item.image;
+        cart.items[idx].currency = item.currency;
+      }
+    }
+    this.calculateTotals(cart);
+    await cart.save();
+    return this.formatCart(cart);
+  }
 
+  async removeItem(userId: string, productId: string) {
+    let cart = await this.cartModel.findOne({ userId });
+    if (!cart) throw new NotFoundException('Cart not found');
+    cart.items = cart.items.filter(i => i.productId !== productId);
+    this.calculateTotals(cart);
+    await cart.save();
+    return this.formatCart(cart);
+  }
 
   async clearCart(userId: string) {
-    const updatedCart = await this.cartRepository.clearCart(
-      new Types.ObjectId(userId),
-    );
-    if (!updatedCart) throw new NotFoundException('Cart not found');
-
-    this.logger.log(`Cleared cart for user ${userId}`);
-
-    return this.formatResponse(true, 'Cart cleared', {
-      items: [],
-      subtotal: 0,
-      discount: 0,
-      tax: 0,
-      total: 0,
-      couponCode: null,
-      itemCount: 0,
-    });
-  }
-
-  async getAbandonedCarts(days: number = 7) {
-    return this.cartRepository.findAbandonedCarts(days);
-  }
-
-  private async validateCartItems(cart: any) {
-    for (let i = cart.items.length - 1; i >= 0; i--) {
-      try {
-        const product = await this.productsService.findOne(
-          (cart as any).items[i].productId.toString(),
-        );
-
-        if (
-          !product ||
-          !(product as any).isActive ||
-          (product as any).stock < 1
-        ) {
-          this.logger.warn(
-            `Product ${(cart as any).items[i].productId} no longer available`,
-          );
-          (cart as any).items.splice(i, 1);
-        } else {
-          (cart as any).items[i].stock = (product as any).stock || 0;
-          (cart as any).items[i].isAvailable = true;
-        }
-      } catch (error) {
-        this.logger.warn(
-          `Error validating product ${cart.items[i].productId}`,
-        );
-        cart.items.splice(i, 1);
-      }
-    }
-
-    if (cart.items.length > 0) {
-      await this.cartRepository.save(cart);
-    }
-  }
-
-  calculateCartTotals(items: any[]): {
-    subtotal: number;
-    discount: number;
-    tax: number;
-    total: number;
-    itemCount: number;
-  } {
-    const subtotal = items.reduce(
-      (sum, item) => sum + (item.totalPrice || 0),
-      0,
-    );
-    const itemCount = items.reduce(
-      (sum, item) => sum + (item.quantity || 0),
-      0,
-    );
-
-    const totalDiscount = items.reduce(
-      (sum, item) => sum + (item.discount || 0),
-      0,
-    );
-
-    const taxableAmount = Math.max(0, subtotal - totalDiscount);
-    const tax = Math.round(taxableAmount * TAX_RATE * 100) / 100;
-    const total = Math.round((taxableAmount + tax) * 100) / 100;
-
-    return {
-      subtotal: Math.round(subtotal * 100) / 100,
-      discount: Math.round(totalDiscount * 100) / 100,
-      tax,
-      total,
-      itemCount,
-    };
-  }
-
-  async applyCoupon(userId: string, couponCode: string) {
-    const cart = await this.cartRepository.findByUserId(
-      new Types.ObjectId(userId),
-    );
-
+    let cart = await this.cartModel.findOne({ userId });
     if (!cart) throw new NotFoundException('Cart not found');
+    cart.items = [];
+    cart.couponCode = null;
+    this.calculateTotals(cart);
+    await cart.save();
+    return this.formatCart(cart);
+  }
 
-    // TODO: Validate coupon with CouponService
-    // const coupon = await this.couponService.validate(couponCode);
-    const discountAmount = 0; // Replace with actual coupon validation
-
-    cart.couponCode = couponCode;
-    cart.discount = discountAmount;
-
-    await this.cartRepository.save(cart);
-    const totals = this.calculateCartTotals(cart.items);
-
-    this.logger.log(`Applied coupon ${couponCode} to cart for user ${userId}`);
-
-    return this.formatResponse(true, 'Coupon applied', {
-      ...totals,
-      items: cart.items,
-    });
+  async applyCoupon(userId: string, dto: CartCouponDto) {
+    let cart = await this.cartModel.findOne({ userId });
+    if (!cart) throw new NotFoundException('Cart not found');
+    cart.couponCode = dto.couponCode;
+    // For demo, apply a flat 10% discount for any coupon
+    cart.discount = cart.subtotal * 0.1;
+    this.calculateTotals(cart);
+    await cart.save();
+    return this.formatCart(cart);
   }
 
   async removeCoupon(userId: string) {
-    const cart = await this.cartRepository.findByUserId(
-      new Types.ObjectId(userId),
-    );
-
+    let cart = await this.cartModel.findOne({ userId });
     if (!cart) throw new NotFoundException('Cart not found');
-
-    cart.couponCode = null as any;
+    cart.couponCode = null;
     cart.discount = 0;
-
-    await this.cartRepository.save(cart);
-    const totals = this.calculateCartTotals(cart.items);
-
-    return this.formatResponse(true, 'Coupon removed', {
-      ...totals,
-      items: cart.items,
-    });
+    this.calculateTotals(cart);
+    await cart.save();
+    return this.formatCart(cart);
   }
-  formatResponse(success: boolean, message: string, data: any) {
-    return { success, message, data };
+
+  private calculateTotals(cart: CartDocument) {
+    cart.subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    cart.tax = cart.subtotal * 0.05; // 5% tax
+    cart.shipping = cart.items.length > 0 ? 10 : 0; // Flat shipping
+    cart.grandTotal = cart.subtotal - (cart.discount || 0) + cart.tax + cart.shipping;
+    cart.currency = cart.items[0]?.currency || 'USD';
+  }
+
+  private formatCart(cart: CartDocument) {
+    return {
+      data: {
+        _id: cart._id,
+        items: cart.items,
+        totals: {
+          subtotal: cart.subtotal,
+          discount: cart.discount,
+          tax: cart.tax,
+          shipping: cart.shipping,
+          grandTotal: cart.grandTotal,
+          currency: cart.currency,
+        },
+      },
+    };
   }
 }

@@ -1,6 +1,6 @@
 import { IsString } from 'class-validator';
 
-export class RemoveFromCartDto {
+export class CartCouponDto {
   @IsString()
-  productId: string;
+  couponCode: string;
 }

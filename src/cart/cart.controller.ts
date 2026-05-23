@@ -1,19 +1,8 @@
-import {
-  Controller,
-  Post,
-  Body,
-  Delete,
-  Get,
-  Patch,
-  Param,
-  UseGuards,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
 import { CartService } from './cart.service';
-import { UpdateCartItemDto } from './dto/update-cart-item.dto';
+import { AddOrUpdateCartItemsDto } from './dto/cart-item.dto';
+import { CartCouponDto } from './dto/cart-coupon.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { User } from '../common/decorators/user.decorator';
 
 @Controller('cart')
 @UseGuards(JwtAuthGuard)
@@ -21,54 +10,37 @@ export class CartController {
   constructor(private readonly cartService: CartService) {}
 
   @Get()
-  async getCart(@User() user: { id: string }) {
-    return await this.cartService.getCart(user.id);
+  async getCart(@Req() req) {
+    return this.cartService.getCart(req.user._id);
   }
 
   @Post('items')
-  async addToCart(
-    @User() user: { id: string },
-    @Body()
-    addMultipleToCartDto: import('./dto/add-multiple-to-cart.dto').AddMultipleToCartDto,
-  ) {
-    return await this.cartService.addMultipleToCart(
-      user.id,
-      addMultipleToCartDto.items,
-    );
+  async addItems(@Req() req, @Body() dto: AddOrUpdateCartItemsDto) {
+    return this.cartService.addItems(req.user._id, dto);
   }
 
   @Patch('items')
-  async updateQuantity(
-    @User() user: { id: string },
-    @Body() body: { items: UpdateCartItemDto[] },
-  ) {
-    return await this.cartService.updateMultiple(user.id, body.items);
+  async updateItems(@Req() req, @Body() dto: AddOrUpdateCartItemsDto) {
+    return this.cartService.updateItems(req.user._id, dto);
   }
 
   @Delete('items/:productId')
-  async removeItem(
-    @User() user: { id: string },
-    @Param('productId') productId: string,
-  ) {
-    return await this.cartService.removeFromCart(user.id, productId);
+  async removeItem(@Req() req, @Param('productId') productId: string) {
+    return this.cartService.removeItem(req.user._id, productId);
   }
 
   @Delete('clear')
-  @HttpCode(HttpStatus.OK)
-  async clearCart(@User() user: { id: string }) {
-    return await this.cartService.clearCart(user.id);
+  async clearCart(@Req() req) {
+    return this.cartService.clearCart(req.user._id);
   }
 
   @Post('coupon')
-  async applyCoupon(
-    @User() user: { id: string },
-    @Body() body: { couponCode: string },
-  ) {
-    return await this.cartService.applyCoupon(user.id, body.couponCode);
+  async applyCoupon(@Req() req, @Body() dto: CartCouponDto) {
+    return this.cartService.applyCoupon(req.user._id, dto);
   }
 
   @Delete('coupon')
-  async removeCoupon(@User() user: { id: string }) {
-    return await this.cartService.removeCoupon(user.id);
+  async removeCoupon(@Req() req) {
+    return this.cartService.removeCoupon(req.user._id);
   }
 }
