@@ -11,36 +11,37 @@ export class CartController {
 
   @Get()
   async getCart(@Req() req) {
-    return this.cartService.getCart(req.user._id);
+    return this.cartService.getCart(req.user.id);
   }
 
   @Post('items')
   async addItems(@Req() req, @Body() dto: AddOrUpdateCartItemsDto) {
-    return this.cartService.addItems(req.user._id, dto);
+    // DTO now expects only productId and quantity
+    return this.cartService.addItems(req.user.id, dto);
   }
 
   @Patch('items')
   async updateItems(@Req() req, @Body() dto: AddOrUpdateCartItemsDto) {
-    return this.cartService.updateItems(req.user._id, dto);
+    return this.cartService.updateItems(req.user.id, dto);
   }
 
   @Delete('items/:productId')
   async removeItem(@Req() req, @Param('productId') productId: string) {
-    return this.cartService.removeItem(req.user._id, productId);
+    return this.cartService.removeItem(req.user.id, productId);
   }
 
   @Delete('clear')
   async clearCart(@Req() req) {
-    return this.cartService.clearCart(req.user._id);
+    return this.cartService.clearCart(req.user.id);
   }
 
   @Post('coupon')
   async applyCoupon(@Req() req, @Body() dto: CartCouponDto) {
-    return this.cartService.applyCoupon(req.user._id, dto);
+    return this.cartService.applyCoupon(req.user.id, dto);
   }
 
   @Delete('coupon')
   async removeCoupon(@Req() req) {
-    return this.cartService.removeCoupon(req.user._id);
+    return this.cartService.removeCoupon(req.user.id);
   }
 }

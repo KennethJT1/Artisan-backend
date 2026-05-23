@@ -4,8 +4,8 @@ import { CartItem, CartItemSchema } from './cart-item.schema';
 
 @Schema()
 export class Cart {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
-  userId: Types.ObjectId;
+  @Prop({ type: String, required: true, index: true })
+  userId: string;
 
   @Prop({ type: [CartItemSchema], default: [] })
   items: CartItem[];

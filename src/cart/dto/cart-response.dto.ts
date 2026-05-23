@@ -1,9 +1,16 @@
-import { CartItemDto } from './cart-item.dto';
+// CartItemDto removed, use inline type
 import { CartTotalsDto } from './cart-totals.dto';
 
 export class CartResponseDto {
   _id: string;
-  items: CartItemDto[];
+  items: Array<{
+    productId: string;
+    title: string;
+    price: number;
+    image: string;
+    quantity: number;
+    currency: string;
+  }>;
   totals: CartTotalsDto;
 }
 
