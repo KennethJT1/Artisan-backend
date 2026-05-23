@@ -19,7 +19,7 @@ import {
   BookingDocument,
   BookingStatus,
 } from 'src/bookings/schemas/bookings.schema';
-import { Review, ReviewsDocument } from 'src/reviews/schemas/review.schema';
+import { Review, ReviewDocument } from 'src/reviews/schemas/review.schema';
 import {
   Favourite,
   FavouritesDocument,
@@ -35,7 +35,7 @@ export class UsersService {
     @InjectModel(Booking.name)
     private readonly bookingModel: Model<BookingDocument>,
     @InjectModel(Review.name)
-    private readonly reviewModel: Model<ReviewsDocument>,
+    private readonly reviewModel: Model<ReviewDocument>,
     @InjectModel(Favourite.name)
     private readonly favouriteModel: Model<FavouritesDocument>,
   ) {}
