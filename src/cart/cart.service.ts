@@ -163,10 +163,9 @@ export class CartService {
       (sum, item) => sum + item.price * item.quantity,
       0,
     );
-    cart.tax = cart.subtotal * 0.05; // 5% tax
-    cart.shipping = cart.items.length > 0 ? 10 : 0; // Flat shipping
-    cart.grandTotal =
-      cart.subtotal - (cart.discount || 0) + cart.tax + cart.shipping;
+    cart.tax = 0; // Tax excluded
+    cart.shipping = 0; // Shipping excluded
+    cart.grandTotal = cart.subtotal - (cart.discount || 0);
     cart.currency = cart.items[0]?.currency || 'USD';
   }
 
@@ -178,8 +177,6 @@ export class CartService {
         totals: {
           subtotal: cart.subtotal,
           discount: cart.discount,
-          tax: cart.tax,
-          shipping: cart.shipping,
           grandTotal: cart.grandTotal,
           currency: cart.currency,
         },
