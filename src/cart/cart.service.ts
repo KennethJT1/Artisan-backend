@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Cart, CartDocument } from './schemas/cart.schema';
 import { AddOrUpdateCartItemsDto } from './dto/cart-item.dto';
 import { CartCouponDto } from './dto/cart-coupon.dto';
-
 
 import { ProductsService } from '../products/products.service';
 
@@ -29,7 +32,7 @@ export class CartService {
       cart = await this.cartModel.create({ userId, items: [] });
     }
     for (const item of dto.items) {
-      const idx = cart.items.findIndex(i => i.productId === item.productId);
+      const idx = cart.items.findIndex((i) => i.productId === item.productId);
       if (idx > -1) {
         cart.items[idx].quantity += item.quantity;
       } else {
@@ -39,7 +42,10 @@ export class CartService {
           productId: (product._id as any).toString(),
           title: product.title,
           price: product.price,
-          image: Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : '',
+          image:
+            Array.isArray(product.images) && product.images.length > 0
+              ? product.images[0]
+              : '',
           quantity: item.quantity,
           currency: 'USD', // Default, since Product has no currency field
         });
@@ -54,14 +60,17 @@ export class CartService {
     let cart = await this.cartModel.findOne({ userId });
     if (!cart) throw new NotFoundException('Cart not found');
     for (const item of dto.items) {
-      const idx = cart.items.findIndex(i => i.productId === item.productId);
+      const idx = cart.items.findIndex((i) => i.productId === item.productId);
       if (idx > -1) {
         cart.items[idx].quantity = item.quantity;
         // Optionally, fetch and update product details if needed
         const product = await this.productsService.findOne(item.productId);
         cart.items[idx].title = product.title;
         cart.items[idx].price = product.price;
-        cart.items[idx].image = Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : '';
+        cart.items[idx].image =
+          Array.isArray(product.images) && product.images.length > 0
+            ? product.images[0]
+            : '';
         cart.items[idx].currency = 'USD'; // Default, since Product has no currency field
       } else {
         // If item does not exist, add it
@@ -70,7 +79,10 @@ export class CartService {
           productId: (product._id as any).toString(),
           title: product.title,
           price: product.price,
-          image: Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : '',
+          image:
+            Array.isArray(product.images) && product.images.length > 0
+              ? product.images[0]
+              : '',
           quantity: item.quantity,
           currency: 'USD',
         });
@@ -84,7 +96,7 @@ export class CartService {
   async removeItem(userId: string, productId: string) {
     let cart = await this.cartModel.findOne({ userId });
     if (!cart) throw new NotFoundException('Cart not found');
-    cart.items = cart.items.filter(i => i.productId !== productId);
+    cart.items = cart.items.filter((i) => i.productId !== productId);
     this.calculateTotals(cart);
     await cart.save();
     return this.formatCart(cart);
@@ -121,11 +133,40 @@ export class CartService {
     return this.formatCart(cart);
   }
 
+  async setCart(userId: string, dto: AddOrUpdateCartItemsDto) {
+    let cart = await this.cartModel.findOne({ userId });
+    if (!cart) {
+      cart = await this.cartModel.create({ userId, items: [] });
+    }
+    cart.items = [];
+    for (const item of dto.items) {
+      const product = await this.productsService.findOne(item.productId);
+      cart.items.push({
+        productId: (product._id as any).toString(),
+        title: product.title,
+        price: product.price,
+        image:
+          Array.isArray(product.images) && product.images.length > 0
+            ? product.images[0]
+            : '',
+        quantity: item.quantity,
+        currency: 'USD',
+      });
+    }
+    this.calculateTotals(cart);
+    await cart.save();
+    return this.formatCart(cart);
+  }
+
   private calculateTotals(cart: CartDocument) {
-    cart.subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    cart.subtotal = cart.items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
     cart.tax = cart.subtotal * 0.05; // 5% tax
     cart.shipping = cart.items.length > 0 ? 10 : 0; // Flat shipping
-    cart.grandTotal = cart.subtotal - (cart.discount || 0) + cart.tax + cart.shipping;
+    cart.grandTotal =
+      cart.subtotal - (cart.discount || 0) + cart.tax + cart.shipping;
     cart.currency = cart.items[0]?.currency || 'USD';
   }
 

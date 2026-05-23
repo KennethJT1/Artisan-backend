@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddOrUpdateCartItemsDto } from './dto/cart-item.dto';
 import { CartCouponDto } from './dto/cart-coupon.dto';
@@ -43,5 +53,16 @@ export class CartController {
   @Delete('coupon')
   async removeCoupon(@Req() req) {
     return this.cartService.removeCoupon(req.user.id);
+  }
+
+  @Post()
+  async setCart(@Req() req, @Body() dto: AddOrUpdateCartItemsDto) {
+    // Replace all items in the cart
+    return this.cartService.setCart(req.user.id, dto);
+  }
+
+  @Delete(':itemId')
+  async deleteCartItem(@Req() req, @Param('itemId') itemId: string) {
+    return this.cartService.removeItem(req.user.id, itemId);
   }
 }
