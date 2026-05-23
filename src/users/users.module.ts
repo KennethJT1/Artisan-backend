@@ -23,7 +23,7 @@ import { PaymentsService } from 'src/payments/payments.service';
     ]),
   ],
   controllers: [UsersController],
-  providers: [UsersService,PaymentsService],
+  providers: [UsersService],
   exports: [UsersService, MongooseModule],
 })
 export class UsersModule {}

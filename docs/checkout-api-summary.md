@@ -238,6 +238,12 @@
 { "success": true }
 ```
 
+already existing
+{
+    "message": "Payment for this order has already been completed.",
+    "error": "Bad Request",
+    "statusCode": 400
+}
 ---
 
 ### 10. Get Payment Status

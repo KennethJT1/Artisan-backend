@@ -52,6 +52,13 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Set trust proxy for Express (for correct IP detection behind proxies)
+  const httpAdapter = app.getHttpAdapter();
+  if (httpAdapter.getType() === 'express') {
+    const instance = httpAdapter.getInstance();
+    instance.set('trust proxy', 1); // or true
+  }
+  
   const port = configService.get<number>('PORT') || 3000;
   await app.listen(port);
   console.log(`🚀 Server running on http://localhost:${port}`);

@@ -21,14 +21,14 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { PaymentsService } from 'src/payments/payments.service';
+// import { PaymentsService } from 'src/payments/payments.service';
 import { AddPaymentMethodDto } from 'src/payments/dto/add-payment-method.dto';
 
 @Controller('users')
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
-    private readonly paymentsService: PaymentsService,
+    // private readonly paymentsService: PaymentsService,
   ) {}
 
   @Post()
@@ -64,11 +64,11 @@ export class UsersController {
     return this.usersService.getPaymentMethods(req.user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('payment-history')
-  async getMyPaymentHistory(@Req() req) {
-    return this.paymentsService.getPaymentHistoryByCustomer(req.user.id);
-  }
+  // @UseGuards(JwtAuthGuard)
+  // @Get('payment-history')
+  // async getMyPaymentHistory(@Req() req) {
+  //   return this.paymentsService.getPaymentHistoryByCustomer(req.user.id);
+  // }
 
   @UseGuards(JwtAuthGuard)
   @Post('payment-methods')

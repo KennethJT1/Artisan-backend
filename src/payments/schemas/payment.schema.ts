@@ -1,3 +1,4 @@
+
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -5,6 +6,8 @@ export type PaymentDocument = Payment & Document;
 
 @Schema({ timestamps: true })
 export class Payment {
+  @Prop({ required: true })
+  orderId: string;
   @Prop({
     type: Types.ObjectId,
     ref: 'User',
@@ -63,7 +66,7 @@ export class Payment {
 
   @Prop({
     required: true,
-    enum: ['card', 'paypal', 'apple'],
+    enum: ['card', 'paypal', 'apple', 'paystack'],
   })
   paymentMethod: string;
 
