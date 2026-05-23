@@ -10,7 +10,8 @@ import {
 } from 'src/favourites/schemas/favourite.schema';
 import { Review, ReviewSchema } from 'src/reviews/schemas/review.schema';
 import { Payment, PaymentSchema } from 'src/payments/schemas/payment.schema';
-import { PaymentsService } from 'src/payments/payments.service';
+import { PaymentsModule } from 'src/payments/payments.module';
+import { OrdersModule } from 'src/orders/orders.module';
 
 @Module({
   imports: [
@@ -21,6 +22,8 @@ import { PaymentsService } from 'src/payments/payments.service';
       { name: Favourite.name, schema: FavouriteSchema },
       { name: Payment.name, schema: PaymentSchema },
     ]),
+    PaymentsModule,
+    OrdersModule,
   ],
   controllers: [UsersController],
   providers: [UsersService],

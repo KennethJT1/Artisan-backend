@@ -11,6 +11,8 @@ import {
   Req,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { PaymentsService } from 'src/payments/payments.service';
+import { OrdersService } from 'src/orders/orders.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
@@ -28,8 +30,21 @@ import { AddPaymentMethodDto } from 'src/payments/dto/add-payment-method.dto';
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
-    // private readonly paymentsService: PaymentsService,
+    private readonly paymentsService: PaymentsService,
+    private readonly ordersService: OrdersService,
   ) {}
+  @UseGuards(JwtAuthGuard)
+  @Get('order-history')
+  async getMyOrderHistory(
+    @Req() req,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+  ) {
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    const result = await this.ordersService.findAllPaginated(req.user.id, pageNum, limitNum);
+    return result;
+  }
 
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
@@ -64,11 +79,19 @@ export class UsersController {
     return this.usersService.getPaymentMethods(req.user.id);
   }
 
-  // @UseGuards(JwtAuthGuard)
-  // @Get('payment-history')
-  // async getMyPaymentHistory(@Req() req) {
-  //   return this.paymentsService.getPaymentHistoryByCustomer(req.user.id);
-  // }
+  @UseGuards(JwtAuthGuard)
+  @Get('payment-history')
+  async getMyPaymentHistory(@Req() req) {
+    const history = await this.paymentsService.getPaymentHistoryByCustomer(req.user.id);
+    return {
+      data: (Array.isArray(history) ? history : []).map((item: any) => ({
+        artisan: item.artisan,
+        date: item.date,
+        amount: item.amount,
+        status: item.status,
+      })),
+    };
+  }
 
   @UseGuards(JwtAuthGuard)
   @Post('payment-methods')
