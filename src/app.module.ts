@@ -20,7 +20,6 @@ import { AdminModule } from './admin/admin.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { FavouritesModule } from './favourites/favourites.module';
 
-
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 
@@ -38,11 +37,15 @@ import { OrdersModule } from './orders/orders.module';
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN },
     }),
+    // BullModule.forRoot({
+    //   connection: {
+    //     host: process.env.REDIS_HOST || 'localhost',
+    //     port: Number(process.env.REDIS_PORT) || 6379,
+    //   },
+    // }),
+
     BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: Number(process.env.REDIS_PORT) || 6379,
-      },
+      connection: { url: process.env.REDIS_URL, tls: {} },
     }),
     UsersModule,
     AuthModule,
