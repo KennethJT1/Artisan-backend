@@ -9,7 +9,9 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { AdminService } from './admin.service';
 import { RecentActivityItem, PlatformAlert } from './dto/activity.dto';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
@@ -20,6 +22,19 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Get('export')
+  async exportData(
+    @Query('type') type: string,
+    @Res() res: Response,
+  ) {
+    const { filename, content, contentType } = await this.adminService.exportData(type);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

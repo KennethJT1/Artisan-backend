@@ -36,6 +36,7 @@
     "class-validator": "^0.14.2",
     "cloudinary": "^2.9.0",
     "cookie-parser": "^1.4.7",
+    "csv-stringify": "^6.7.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",

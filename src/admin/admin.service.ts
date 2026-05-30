@@ -1,3 +1,4 @@
+import { stringify } from 'csv-stringify/sync';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -5,7 +6,9 @@ import { Payment, PaymentDocument } from '../payments/schemas/payment.schema';
 import { User, UserDocument, UserRole } from '../users/schemas/user.schema';
 import { Product, ProductDocument } from '../products/schemas/product.schema';
 import { RecentActivityItem, PlatformAlert } from './dto/activity.dto';
-import { Artisan, ArtisanDocument } from 'src/artisans/schemas/artisan.schema';
+import { Artisan, ArtisanDocument } from '../artisans/schemas/artisan.schema';
+
+import { formatDate } from '../utils/date-format.util';
 
 @Injectable()
 export class AdminService {
@@ -15,6 +18,70 @@ export class AdminService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     @InjectModel(Artisan.name) private artisanModel: Model<ArtisanDocument>,
   ) {}
+
+  async exportData(type: string) {
+    let data: any[] = [];
+    let filename = '';
+    switch (type) {
+      case 'bookings':
+        data = await this.paymentModel.find().lean();
+        filename = 'bookings.csv';
+        break;
+      case 'artisans':
+        data = await this.artisanModel.find().populate('user').lean();
+        filename = 'artisans.csv';
+        break;
+      case 'analytics':
+        data = await this.getDashboardStats('30days');
+        filename = 'analytics.csv';
+        break;
+      default:
+        throw new Error('Invalid export type');
+    }
+    // Flatten/populate as needed for CSV
+    let records = data;
+    if (type === 'artisans') {
+      records = data.map((a: any) => ({
+        id: a._id,
+        name: a.user ? `${a.user.firstName} ${a.user.lastName}` : '',
+        email: a.user?.email || '',
+        phone: a.user?.phone || '',
+        category: a.category || '',
+        status: a.status,
+        location: a.location,
+        experience: a.experience,
+        hourlyRate: a.hourlyRate,
+        date: a.createdAt ? formatDate(a.createdAt) : '',
+      }));
+    }
+    if (type === 'bookings') {
+      records = data.map((b: any) => ({
+        id: b._id,
+        customer: b.customer,
+        artisan: b.artisan,
+        service: b.service,
+        amount: b.total,
+        commission: b.platformFee,
+        status: b.status,
+        date: b.createdAt ? formatDate(b.createdAt) : '',
+        location: b.location,
+      }));
+    // Helper to format date as DD/M/YYYY
+    function formatDate(date: Date | string | number): string {
+      const d = new Date(date);
+      return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+    }
+    }
+    if (type === 'analytics') {
+      records = data;
+    }
+    const content = stringify(records, { header: true });
+    return {
+      filename,
+      content,
+      contentType: 'text/csv',
+    };
+  }
 
   async getDashboardStats(timeframe: string) {
     const dateRange = this.calculateDateRange(timeframe);
