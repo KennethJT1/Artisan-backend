@@ -24,6 +24,51 @@ export class ArtisansService {
     private readonly connection: Connection,
   ) {}
 
+  /**
+   * Get analytics for the authenticated artisan
+   */
+  async getAnalytics(userId: any) {
+    // Find artisan and user
+    const artisan = await this.findByUserId(userId);
+    const user = await this.userModel.findById(userId);
+    const paymentModel = this.connection.model('Payment');
+
+    // Total bookings
+    const totalBookings = await paymentModel.countDocuments({ artisan: artisan._id });
+
+    // Completed jobs
+    const completedJobs = await paymentModel.countDocuments({ artisan: artisan._id, status: 'completed' });
+
+    // Total earnings
+    const paidPayments = await paymentModel.find({ artisan: artisan._id, paymentStatus: 'paid' });
+    const totalEarnings = paidPayments.reduce((sum, p) => sum + (p.total - p.platformFee), 0);
+
+    // Average rating and total reviews
+    const reviews = await paymentModel.find({ artisan: artisan._id, rating: { $exists: true, $ne: null } });
+    const totalReviews = reviews.length;
+    const averageRating = totalReviews > 0 ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / totalReviews).toFixed(1) : '0.0';
+
+    // Profile views
+    const profileViews = artisan.profileViews || 0;
+
+    let categoryName = null;
+    if (artisan.category && typeof artisan.category === 'object' && 'name' in artisan.category) {
+      categoryName = (artisan.category as any).name;
+    }
+    return {
+      id: artisan._id,
+      name: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+      category: categoryName,
+      totalBookings,
+      completedJobs,
+      totalEarnings: totalEarnings.toFixed(2),
+      averageRating,
+      totalReviews,
+      profileViews,
+    };
+  }
+
+
   // ══════════════════════════════════════════════════════════════════════════
   // NEW: Artisan Dashboard Endpoints
   // ══════════════════════════════════════════════════════════════════════════

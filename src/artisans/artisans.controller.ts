@@ -38,6 +38,15 @@ export class ArtisansController {
     return this.artisansService.findByUserId(user.id);
   }
 
+  // ✅ NEW: Get artisan analytics
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ARTISAN)
+  @Get('me/analytics')
+  async getMyAnalytics(@GetUser() user: any) {
+    return this.artisansService.getAnalytics(user.id);
+  }
+
+
   // ✅ NEW: Update profile
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ARTISAN)
