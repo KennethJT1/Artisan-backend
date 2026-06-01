@@ -378,6 +378,12 @@ export class ArtisansService {
         throw new BadRequestException('Email already in use');
       }
 
+      if (!data.password || !data.password.trim()) {
+        throw new BadRequestException(
+          'Password is required when applying as an artisan',
+        );
+      }
+
       const hashed = await bcrypt.hash(data.password, 10);
 
       // Create User
