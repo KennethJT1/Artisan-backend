@@ -13,4 +13,8 @@ export interface ApplyArtisanDto {
   description: string;
   portfolio?: string[];
   certifications?: string[];
+  // Aliases accepted from JSON body
+  portfolioUrls?: string[];
+  certificationUrls?: string[];
+  agreeToTerms?: boolean;
 }

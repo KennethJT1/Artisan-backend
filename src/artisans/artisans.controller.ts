@@ -167,11 +167,24 @@ export class ArtisansController {
       certificationUrls.push(...uploaded);
     }
 
+    // Also accept pre-uploaded URLs passed directly in the JSON body
+    const bodyPortfolio: string[] = Array.isArray((createArtisanData as any).portfolioUrls)
+      ? (createArtisanData as any).portfolioUrls
+      : (createArtisanData as any).portfolioUrls
+        ? [(createArtisanData as any).portfolioUrls as string]
+        : [];
+
+    const bodyCertifications: string[] = Array.isArray((createArtisanData as any).certificationUrls)
+      ? (createArtisanData as any).certificationUrls
+      : (createArtisanData as any).certificationUrls
+        ? [(createArtisanData as any).certificationUrls as string]
+        : [];
+
     // Merge uploaded URLs into DTO
     const artisanDataWithUrls: ApplyArtisanDto = {
       ...createArtisanData,
-      portfolio: portfolioUrls,
-      certifications: certificationUrls,
+      portfolio: [...portfolioUrls, ...bodyPortfolio],
+      certifications: [...certificationUrls, ...bodyCertifications],
     };
 
     return this.artisansService.apply(artisanDataWithUrls);
