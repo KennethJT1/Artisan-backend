@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types, ClientSession } from 'mongoose';
@@ -13,7 +14,7 @@ import { ApplyArtisanDto } from './dto/create-artisan.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
-export class ArtisansService {
+export class ArtisansService implements OnModuleInit {
   constructor(
     @InjectModel(Artisan.name)
     private readonly artisanModel: Model<ArtisanDocument>,
@@ -23,6 +24,34 @@ export class ArtisansService {
     @InjectConnection()
     private readonly connection: Connection,
   ) {}
+
+  async onModuleInit() {
+    await this.removeLegacyEmailIndex();
+  }
+
+  private async removeLegacyEmailIndex() {
+    try {
+      const indexes = await this.artisanModel.collection.indexes();
+      let hasLegacyEmailIndex = false;
+
+      for (const index of indexes) {
+        if (index.name === 'email_1') {
+          hasLegacyEmailIndex = true;
+          break;
+        }
+      }
+
+      if (hasLegacyEmailIndex) {
+        await this.artisanModel.collection.dropIndex('email_1');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+
+      if (!message.includes('index not found')) {
+        throw error;
+      }
+    }
+  }
 
   /**
    * Get analytics for the authenticated artisan

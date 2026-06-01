@@ -11,6 +11,8 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { PaginationQueryDto } from 'src/common/dto/pagination-query.dto';
 import { PaginatedResult } from 'src/common/interfaces/paginated-result.interface';
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 @Injectable()
 export class CategoriesService {
   constructor(
@@ -20,16 +22,20 @@ export class CategoriesService {
 
   async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
     const { name } = createCategoryDto;
+    const normalizedName = name.trim();
 
     const existing = await this.categoryModel.findOne({
-      name: { $regex: new RegExp(`^${name}$`, 'i') },
+      name: { $regex: new RegExp(`^${escapeRegExp(normalizedName)}$`, 'i') },
     });
 
     if (existing) {
-      throw new BadRequestException(`Category '${name}' already exists`);
+      throw new BadRequestException(`Category '${normalizedName}' already exists`);
     }
 
-    const createdCategory = new this.categoryModel(createCategoryDto);
+    const createdCategory = new this.categoryModel({
+      ...createCategoryDto,
+      name: normalizedName,
+    });
     return createdCategory.save();
   }
 
@@ -112,6 +118,12 @@ export class CategoriesService {
   // }
 
   async findByName(name: string, session?: ClientSession) {
-    return this.categoryModel.findOne({ name }).session(session ?? null);
+    const normalizedName = name.trim();
+
+    return this.categoryModel
+      .findOne({
+        name: { $regex: new RegExp(`^${escapeRegExp(normalizedName)}$`, 'i') },
+      })
+      .session(session ?? null);
   }
 }
