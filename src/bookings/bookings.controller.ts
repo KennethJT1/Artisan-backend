@@ -40,6 +40,21 @@ export class BookingsController {
     return this.bookingsService.update(id, req.user.id, updateBookingDto);
   }
 
+  @Get('me/all')
+  @UseGuards(JwtAuthGuard)
+  async getAllUserActivity(
+    @Req() req,
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+  ) {
+    return this.bookingsService.getAllUserActivity(
+      req.user.id,
+      req.user.role,
+      Number(page) || 1,
+      Number(limit) || 10,
+    );
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   findMyBookings(
@@ -50,6 +65,22 @@ export class BookingsController {
   ) {
     return this.bookingsService.findMyBookings(
       req.user.id,
+      Number(page) || 1,
+      Number(limit) || 10,
+      status,
+    );
+  }
+
+  // Admin: view all bookings
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  findAllBookings(
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Query('status') status?: any,
+  ) {
+    return this.bookingsService.findAllBookings(
       Number(page) || 1,
       Number(limit) || 10,
       status,

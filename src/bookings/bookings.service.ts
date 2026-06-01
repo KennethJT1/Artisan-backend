@@ -5,8 +5,9 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import type { Connection } from 'mongoose';
 import {
   Booking,
   BookingDocument,
@@ -25,6 +26,7 @@ export class BookingsService {
     private userModel: Model<UserDocument>,
     @InjectModel(Artisan.name)
     private artisanModel: Model<ArtisanDocument>,
+    @InjectConnection() private connection: Connection,
   ) {}
 
   async findByCustomer(customerId: string) {
@@ -102,7 +104,126 @@ export class BookingsService {
   }
 
 
-async findMyBookings(
+  async getAllUserActivity(
+    userId: string,
+    userRole: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const skip = (page - 1) * limit;
+
+    // Build booking filter based on role
+    const bookingFilter: any = { isDeleted: false };
+
+    if (userRole === 'customer') {
+      // Customers see bookings they created
+      bookingFilter.customerId = new Types.ObjectId(userId);
+    } else if (userRole === 'artisan') {
+      // Artisans see bookings for their profile
+      // First find their artisan profile
+      const artisan = await this.artisanModel
+        .findOne({ user: new Types.ObjectId(userId) })
+        .select('_id')
+        .lean();
+      if (artisan) {
+        bookingFilter.artisanId = artisan._id;
+      } else {
+        // Also include bookings where they are the customer
+        bookingFilter.$or = [
+          { artisanId: null }, // placeholder for artisan not found
+          { customerId: new Types.ObjectId(userId) },
+        ];
+      }
+    } else if (userRole === 'admin') {
+      // Admins see all bookings
+    }
+
+    // Fetch bookings and orders in parallel
+    const [bookings, orders, totalBookings, totalOrders] = await Promise.all([
+      this.bookingModel
+        .find(bookingFilter)
+        .populate('customerId', 'firstName lastName email')
+        .populate({
+          path: 'artisanId',
+          populate: { path: 'user', select: 'firstName lastName email' },
+        })
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.connection
+        .model('Order')
+        .find({ userId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.bookingModel.countDocuments(bookingFilter),
+      this.connection.model('Order').countDocuments({ userId }),
+    ]);
+
+    // Format bookings
+    const formattedBookings = bookings.map((b: any) => ({
+      type: 'booking',
+      id: b._id,
+      customerId: b.customerId
+        ? {
+            firstName: b.customerId.firstName,
+            lastName: b.customerId.lastName,
+            email: b.customerId.email,
+          }
+        : null,
+      artisanId: b.artisanId
+        ? {
+            commissionRate: b.artisanId.commissionRate,
+            firstName: b.artisanId.user?.firstName,
+            lastName: b.artisanId.user?.lastName,
+            email: b.artisanId.user?.email,
+          }
+        : null,
+      service: b.service,
+      date: b.date,
+      time: b.time,
+      duration: b.duration,
+      amount: b.amount,
+      status: b.status,
+      location: b.location,
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
+    }));
+
+    // Format orders as products
+    const formattedOrders = orders.map((o: any) => ({
+      type: 'order',
+      id: o._id,
+      items: o.items,
+      totals: o.totals,
+      status: o.status,
+      createdAt: o.createdAt,
+      updatedAt: o.updatedAt,
+    }));
+
+    // Combine and sort by date
+    const combined = [...formattedBookings, ...formattedOrders].sort(
+      (a: any, b: any) =>
+        new Date(b.updatedAt || b.createdAt).getTime() -
+        new Date(a.updatedAt || a.createdAt).getTime(),
+    );
+
+    return {
+      data: combined,
+      meta: {
+        totalBookings,
+        totalOrders,
+        total: totalBookings + totalOrders,
+        page,
+        limit,
+        pages: Math.ceil((totalBookings + totalOrders) / limit),
+      },
+    };
+  }
+
+  async findMyBookings(
   customerId: string,
   page: number = 1,
   limit: number = 10,
@@ -308,6 +429,64 @@ async findMyBookings(
     await booking.save();
 
     return { message: 'Booking deleted (soft) successfully' };
+  }
+
+  async findAllBookings(
+    page: number = 1,
+    limit: number = 10,
+    status?: any,
+  ) {
+    const skip = (page - 1) * limit;
+    const filter: any = { isDeleted: false };
+
+    if (status) {
+      const statuses: string[] = status
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter((s: string) => Object.values(BookingStatus).includes(s as BookingStatus));
+      if (statuses.length) filter.status = { $in: statuses };
+    }
+
+    const bookings = await this.bookingModel
+      .find(filter)
+      .populate('customerId', 'firstName lastName email')
+      .populate({
+        path: 'artisanId',
+        populate: { path: 'user', select: 'firstName lastName email' },
+      })
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const total = await this.bookingModel.countDocuments(filter);
+
+    const data = bookings.map((b: any) => ({
+      ...b,
+      customerId: {
+        firstName: b.customerId?.firstName,
+        lastName: b.customerId?.lastName,
+        email: b.customerId?.email,
+      },
+      artisanId: b.artisanId
+        ? {
+            commissionRate: b.artisanId.commissionRate,
+            firstName: b.artisanId.user?.firstName,
+            lastName: b.artisanId.user?.lastName,
+            email: b.artisanId.user?.email,
+          }
+        : null,
+    }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async respondToBooking(
