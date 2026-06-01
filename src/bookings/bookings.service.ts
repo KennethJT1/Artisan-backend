@@ -109,6 +109,7 @@ export class BookingsService {
     userRole: string,
     page: number = 1,
     limit: number = 10,
+    type?: 'booking' | 'order',
   ) {
     const skip = (page - 1) * limit;
 
@@ -138,29 +139,57 @@ export class BookingsService {
       // Admins see all bookings
     }
 
-    // Fetch bookings and orders in parallel
-    const [bookings, orders, totalBookings, totalOrders] = await Promise.all([
-      this.bookingModel
-        .find(bookingFilter)
-        .populate('customerId', 'firstName lastName email')
-        .populate({
-          path: 'artisanId',
-          populate: { path: 'user', select: 'firstName lastName email' },
-        })
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      this.connection
-        .model('Order')
-        .find({ userId })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      this.bookingModel.countDocuments(bookingFilter),
-      this.connection.model('Order').countDocuments({ userId }),
-    ]);
+    // Determine what to fetch based on type filter
+    const fetchBookings = !type || type === 'booking';
+    const fetchOrders = !type || type === 'order';
+
+    // Fetch bookings and orders in parallel based on type filter
+    const queries: Promise<any>[] = [];
+    if (fetchBookings) {
+      queries.push(
+        this.bookingModel
+          .find(bookingFilter)
+          .populate('customerId', 'firstName lastName email')
+          .populate({
+            path: 'artisanId',
+            populate: { path: 'user', select: 'firstName lastName email' },
+          })
+          .sort({ updatedAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        this.bookingModel.countDocuments(bookingFilter),
+      );
+    }
+    if (fetchOrders) {
+      queries.push(
+        this.connection
+          .model('Order')
+          .find({ userId })
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        this.connection.model('Order').countDocuments({ userId }),
+      );
+    }
+
+    const results = await Promise.all(queries);
+
+    let bookings: any[] = [];
+    let orders: any[] = [];
+    let totalBookings = 0;
+    let totalOrders = 0;
+
+    if (fetchBookings) {
+      bookings = results[0];
+      totalBookings = results[1];
+    }
+    if (fetchOrders) {
+      const orderIndex = fetchBookings ? 2 : 0;
+      orders = results[orderIndex];
+      totalOrders = results[orderIndex + 1];
+    }
 
     // Format bookings
     const formattedBookings = bookings.map((b: any) => ({

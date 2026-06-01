@@ -46,12 +46,14 @@ export class BookingsController {
     @Req() req,
     @Query('page') page: string,
     @Query('limit') limit: string,
+    @Query('type') type?: 'booking' | 'order',
   ) {
     return this.bookingsService.getAllUserActivity(
       req.user.id,
       req.user.role,
       Number(page) || 1,
       Number(limit) || 10,
+      type,
     );
   }
 
