@@ -310,6 +310,47 @@ async findMyBookings(
     return { message: 'Booking deleted (soft) successfully' };
   }
 
+  async respondToBooking(
+    bookingId: string,
+    artisanUserId: string,
+    action: 'accept' | 'reject',
+  ) {
+    if (!Types.ObjectId.isValid(bookingId)) {
+      throw new BadRequestException('Invalid booking ID');
+    }
+
+    const booking = await this.bookingModel.findById(bookingId).populate({
+      path: 'artisanId',
+      select: 'user',
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    // Verify the requesting user owns this artisan profile
+    const artisanUserId_ = (booking.artisanId as any)?.user?.toString();
+    if (artisanUserId_ !== artisanUserId) {
+      throw new ForbiddenException('You are not the artisan for this booking');
+    }
+
+    if (booking.status !== BookingStatus.PENDING) {
+      throw new BadRequestException(
+        `Booking is already ${booking.status} and cannot be ${action}ed`,
+      );
+    }
+
+    booking.status =
+      action === 'accept' ? BookingStatus.CONFIRMED : BookingStatus.CANCELLED;
+    await booking.save();
+
+    return {
+      message: `Booking ${action === 'accept' ? 'accepted' : 'rejected'} successfully`,
+      bookingId: booking._id,
+      status: booking.status,
+    };
+  }
+
   async deleteAll() {
     // Deletes all bookings
     const result = this.bookingModel.deleteMany({});

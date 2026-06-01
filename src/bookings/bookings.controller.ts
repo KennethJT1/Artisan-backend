@@ -77,11 +77,24 @@ export class BookingsController {
 
   // Optional - customer completes + reviews in one step
   @Patch(':id/complete')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.CUSTOMER)
   completeAndReview(
     @Req() req,
     @Param('id') id: string,
     @Body() body: { rating: number; review?: string },
   ) {
     return this.bookingsService.completeAndReview(id, req.user.id, body);
+  }
+
+  @Patch(':id/respond')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ARTISAN)
+  respondToBooking(
+    @Req() req,
+    @Param('id') id: string,
+    @Body('action') action: 'accept' | 'reject',
+  ) {
+    return this.bookingsService.respondToBooking(id, req.user.id, action);
   }
 }
