@@ -70,8 +70,18 @@ export class ArtisansController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ARTISAN)
   @Get('me/bookings')
-  async getMyBookings(@GetUser() user: any, @Query('status') status?: string) {
-    return this.artisansService.getBookingsByArtisan(user.id, status);
+  async getMyBookings(
+    @GetUser() user: any,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.artisansService.getBookingsByArtisan(
+      user.id,
+      status,
+      Number(page) || 1,
+      Number(limit) || 10,
+    );
   }
 
   // ✅ NEW: Get earnings summary

@@ -180,7 +180,12 @@ export class ArtisansService implements OnModuleInit {
   /**
    * Get bookings by artisan
    */
-  async getBookingsByArtisan(userId: any, status?: string): Promise<any[]> {
+  async getBookingsByArtisan(
+    userId: any,
+    status?: string,
+    page: number = 1,
+    limit: number = 10,
+  ): Promise<any> {
     const artisan = await this.artisanModel
       .findOne({ user: new Types.ObjectId(userId) })
       .select('_id')
@@ -190,25 +195,39 @@ export class ArtisansService implements OnModuleInit {
       throw new NotFoundException('Artisan profile not found');
     }
 
-    const filter: Record<string, any> = { artisanId: artisan._id };
+    const filter: Record<string, any> = { artisanId: artisan._id, isDeleted: false };
     if (status) {
-      filter.status = status;
+      const statuses = status
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (statuses.length === 1) {
+        filter.status = statuses[0];
+      } else if (statuses.length > 1) {
+        filter.status = { $in: statuses };
+      }
     }
 
+    const skip = (page - 1) * limit;
     const bookingModel = this.connection.model('Booking');
-    const bookings = await bookingModel
-      .find(filter)
-      .populate({ path: 'customerId', select: 'firstName lastName phone email' })
-      .sort({ createdAt: -1 })
-      .lean();
 
-    return bookings.map((booking: any) => ({
+    const [bookings, total] = await Promise.all([
+      bookingModel
+        .find(filter)
+        .populate({ path: 'customerId', select: 'firstName lastName phone email' })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      bookingModel.countDocuments(filter),
+    ]);
+
+    const data = bookings.map((booking: any) => ({
       id: booking._id,
       customer: booking.customerId?.firstName
         ? `${booking.customerId.firstName} ${booking.customerId.lastName}`
         : 'Unknown',
       service: booking.service,
-      // date: booking.date,
       date: formatDate(booking.date),
       time: booking.time,
       duration: booking.duration,
@@ -217,6 +236,16 @@ export class ArtisansService implements OnModuleInit {
       location: booking.location,
       phone: booking.customerId?.phone || '',
     }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
