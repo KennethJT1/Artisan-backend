@@ -70,3 +70,6 @@ export class Artisan {
 }
 
 export const ArtisanSchema = SchemaFactory.createForClass(Artisan);
+
+ArtisanSchema.index({ status: 1 });
+ArtisanSchema.index({ user: 1 }, { unique: true });

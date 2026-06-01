@@ -13,6 +13,8 @@ import { User, UserDocument, UserRole } from 'src/users/schemas/user.schema';
 import { ApplyArtisanDto } from './dto/create-artisan.dto';
 import * as bcrypt from 'bcrypt';
 
+import { formatDate } from '../utils/date-format.util';
+
 @Injectable()
 export class ArtisansService implements OnModuleInit {
   constructor(
@@ -106,34 +108,12 @@ export class ArtisansService implements OnModuleInit {
    * Find artisan by user ID
    */
   async findByUserId(userId: any): Promise<ArtisanDocument> {
-    // Try to find user first
-    // const userModel = this.connection.model('User');
-    const user = await this.userModel.findById(userId);
-
-    if (!user) {
-      console.error('❌ User not found!');
-      throw new NotFoundException('User not found');
-    }
-
-    // Find artisan
     const artisan = await this.artisanModel
-      .findOne({
-        user: new Types.ObjectId(userId),
-      })
+      .findOne({ user: new Types.ObjectId(userId) })
       .populate('category')
-      .populate({
-        path: 'user',
-        select: 'firstName lastName',
-      });
+      .populate({ path: 'user', select: 'firstName lastName email phone' });
 
     if (!artisan) {
-      console.error('❌ Artisan not found for user:', userId);
-
-      // Check if ANY artisan exists for this user ID (string comparison)
-      const anyArtisan = await this.artisanModel.findOne({
-        user: userId.toString(),
-      });
-
       throw new NotFoundException('Artisan profile not found');
     }
 
@@ -201,32 +181,41 @@ export class ArtisansService implements OnModuleInit {
    * Get bookings by artisan
    */
   async getBookingsByArtisan(userId: any, status?: string): Promise<any[]> {
-    const artisan = await this.findByUserId(userId);
-    const filter: any = { artisan: artisan._id };
+    const artisan = await this.artisanModel
+      .findOne({ user: new Types.ObjectId(userId) })
+      .select('_id')
+      .lean();
+
+    if (!artisan) {
+      throw new NotFoundException('Artisan profile not found');
+    }
+
+    const filter: Record<string, any> = { artisanId: artisan._id };
     if (status) {
       filter.status = status;
     }
 
-    const paymentModel = this.connection.model('Payment');
-    const bookings = await paymentModel
+    const bookingModel = this.connection.model('Booking');
+    const bookings = await bookingModel
       .find(filter)
-      .populate('customer')
-      .sort({ createdAt: -1 });
+      .populate({ path: 'customerId', select: 'firstName lastName phone email' })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return bookings.map((booking: any) => ({
       id: booking._id,
-      customer: (booking.customer as any)?.firstName
-        ? `${(booking.customer as any).firstName} ${(booking.customer as any).lastName}`
+      customer: booking.customerId?.firstName
+        ? `${booking.customerId.firstName} ${booking.customerId.lastName}`
         : 'Unknown',
       service: booking.service,
-      date: booking.date,
+      // date: booking.date,
+      date: formatDate(booking.date),
       time: booking.time,
       duration: booking.duration,
-      amount: `$${booking.total}`,
+      amount: booking.amount,
       status: booking.status,
       location: booking.location,
-      phone: (booking.customer as any)?.phone || '',
-      notes: booking.notes || '',
+      phone: booking.customerId?.phone || '',
     }));
   }
 

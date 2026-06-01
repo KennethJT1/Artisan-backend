@@ -35,3 +35,7 @@ export class Booking {
 }
 
 export const BookingSchema = SchemaFactory.createForClass(Booking);
+
+BookingSchema.index({ artisanId: 1, status: 1 });
+BookingSchema.index({ customerId: 1, status: 1 });
+BookingSchema.index({ createdAt: -1 });
