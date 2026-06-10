@@ -47,3 +47,4 @@ export const ReviewSchema = SchemaFactory.createForClass(Review);
 
 ReviewSchema.index({ artisanId: 1, productId: 1, orderId: 1, reviewerId: 1 }, { unique: true });
 ReviewSchema.index({ status: 1, reported: 1 });
+
