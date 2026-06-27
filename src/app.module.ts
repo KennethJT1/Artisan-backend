@@ -34,9 +34,13 @@ import { OrdersModule } from './orders/orders.module';
       }),
     }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET,
-      signOptions: { expiresIn: process.env.JWT_EXPIRES_IN },
-    }),
+      // secret: process.env.JWT_SECRET,
+      // signOptions: { expiresIn: process.env.JWT_EXPIRES_IN },
+     secret: process.env.JWT_SECRET!,
+     signOptions: {
+        expiresIn: (process.env.JWT_EXPIRES_IN ?? '1h') as any,
+      } ,
+}),
     // BullModule.forRoot({
     //   connection: {
     //     host: process.env.REDIS_HOST || 'localhost',

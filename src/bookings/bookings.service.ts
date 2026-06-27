@@ -35,7 +35,7 @@ export class BookingsService {
     });
   }
 
-  async create(customerId: string, dto: CreateBookingDto) {
+  async create(customerId: string, dto: CreateBookingDto): Promise<any> {
     // ✅ 1. Prevent self booking
     if (customerId === dto.artisanId) {
       throw new BadRequestException('You cannot book yourself');
@@ -257,7 +257,7 @@ export class BookingsService {
   page: number = 1,
   limit: number = 10,
   status?: any,
-) {
+) : Promise<any>{
   const skip = (page - 1) * limit;
 
   // Build filter
@@ -315,7 +315,7 @@ export class BookingsService {
   };
 }
 
-  async findOne(bookingId: string, userId: string) {
+  async findOne(bookingId: string, userId: string): Promise<any> {
     if (!Types.ObjectId.isValid(bookingId))
       throw new BadRequestException('Invalid booking id');
 
@@ -354,7 +354,7 @@ export class BookingsService {
     };
   }
 
-  async update(bookingId: string, userId: string, dto: UpdateBookingDto) {
+  async update(bookingId: string, userId: string, dto: UpdateBookingDto): Promise<any> {
     const booking = await this.bookingModel.findById(bookingId);
 
     if (!booking) throw new NotFoundException('Booking not found');

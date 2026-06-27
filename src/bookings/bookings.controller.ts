@@ -25,7 +25,7 @@ export class BookingsController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(@Req() req, @Body() createBookingDto: CreateBookingDto) {
+  create(@Req() req, @Body() createBookingDto: CreateBookingDto): Promise<any> {
     return this.bookingsService.create(req.user.id, createBookingDto);
   }
 
@@ -36,7 +36,7 @@ export class BookingsController {
     @Req() req,
     @Param('id') id: string,
     @Body() updateBookingDto: UpdateBookingDto,
-  ) {
+  ): Promise<any> {
     return this.bookingsService.update(id, req.user.id, updateBookingDto);
   }
 
@@ -91,7 +91,7 @@ export class BookingsController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  findOne(@Req() req, @Param('id') id: string) {
+  findOne(@Req() req, @Param('id') id: string): Promise<any>{
     return this.bookingsService.findOne(id, req.user.id);
   }
 
