@@ -20,11 +20,21 @@ export class AuthController {
   ) {
     const { token, user } = await this.authService.login(loginDto);
 
+    // // process.env.NODE_ENV === 'development'
+    // res.cookie('token', token, {
+    //   httpOnly: true,
+    //   secure: process.env.NODE_ENV === 'production',
+    //   sameSite: 'lax',
+    //   maxAge: 7 * 24 * 60 * 60 * 1000,
+    // });
+
+    // process.env.NODE_ENV === 'production'
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true, // Always true in production (HTTPS)
+      sameSite: 'none', // Required for cross-site cookies
       maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
     });
 
     return { token, user };
