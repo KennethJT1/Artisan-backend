@@ -34,7 +34,7 @@ async function bootstrap() {
     '/api/auth/login',
     rateLimit({
       windowMs: 15 * 60 * 1000,  // 15 minutes
-      limit: 10,                 // 10 login attempts per 15 min
+      limit: 10,                 // 10 login attempts per 15 mins
       message: 'Too many login attempts, please try again later.',
       skipSuccessfulRequests: true, // Don't count successful logins
     }),
