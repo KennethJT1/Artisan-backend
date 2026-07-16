@@ -16,12 +16,32 @@ import { InjectModel as InjectOrderModel } from '@nestjs/mongoose';
 import { Order } from '../orders/schemas/order.schema';
 import { InitiatePaystackPaymentDto } from './dto/initiate-paystack-payment.dto';
 import axios from 'axios';
+import { SUBSCRIPTION_PLANS } from './constants/subscription-plans';
+import { User, UserDocument } from 'src/users/schemas/user.schema';
+import Stripe from 'stripe';
+
+// const PRICE_IDS = {
+//   beginner: {
+//     monthly: process.env.STRIPE_BEGINNER_MONTHLY!,
+//     yearly: process.env.STRIPE_BEGINNER_YEARLY!,
+//   },
+//   intermediate: {
+//     monthly: process.env.STRIPE_INTERMEDIATE_MONTHLY!,
+//     yearly: process.env.STRIPE_INTERMEDIATE_YEARLY!,
+//   },
+//   advanced: {
+//     monthly: process.env.STRIPE_ADVANCED_MONTHLY!,
+//     yearly: process.env.STRIPE_ADVANCED_YEARLY!,
+//   },
+// } as const;
 
 @Injectable()
 export class PaymentsService {
   constructor(
     @InjectModel(Payment.name) private paymentModel: Model<PaymentDocument>,
     @InjectOrderModel(Order.name) private orderModel: Model<Order>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
   ) {}
 
   // Initiate Paystack payment
@@ -141,14 +161,14 @@ export class PaymentsService {
         status === 'success'
           ? { paymentStatus: status, status: 'completed' }
           : { paymentStatus: status },
-        { new: true }
+        { new: true },
       )
       .lean<PaymentLean | null>();
     // If payment is successful, update the related order status to 'paid'
     if (payment && status === 'success' && payment.orderId) {
       await this.orderModel.findOneAndUpdate(
         { _id: payment.orderId },
-        { status: 'paid' }
+        { status: 'paid' },
       );
     }
     return { success: !!payment };
@@ -218,5 +238,150 @@ export class PaymentsService {
           : String(p.createdAt),
       status: p.paymentStatus, // or p.status if you prefer
     }));
+  }
+
+  // === STRIPE SUBSCRIPTION METHODS ===
+  async createSubscription(
+    userId: string,
+    planKey: string,
+    billingCycle: 'monthly' | 'yearly',
+  ) {
+    const planData =
+      SUBSCRIPTION_PLANS[planKey as keyof typeof SUBSCRIPTION_PLANS];
+    if (!planData || !planData.price) {
+      throw new BadRequestException('Invalid subscription plan');
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: { userId },
+      });
+      customerId = customer.id;
+      await this.userModel.updateOne(
+        { _id: userId },
+        { $set: { stripeCustomerId: customerId } },
+      );
+    }
+
+    const PRICE_IDS = {
+      beginner: {
+        monthly: process.env.STRIPE_BEGINNER_MONTHLY!,
+        yearly: process.env.STRIPE_BEGINNER_YEARLY!,
+      },
+      intermediate: {
+        monthly: process.env.STRIPE_INTERMEDIATE_MONTHLY!,
+        yearly: process.env.STRIPE_INTERMEDIATE_YEARLY!,
+      },
+      advanced: {
+        monthly: process.env.STRIPE_ADVANCED_MONTHLY!,
+        yearly: process.env.STRIPE_ADVANCED_YEARLY!,
+      },
+    };
+    const priceId = PRICE_IDS[planKey]?.[billingCycle];
+
+    if (!priceId) {
+      throw new BadRequestException('Invalid subscription plan.');
+    }
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${process.env.CLIENT_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_URL}/subscription`,
+      metadata: { userId, plan: planKey, billingCycle },
+    });
+
+    return { checkoutUrl: session.url, sessionId: session.id };
+  }
+
+  // async getUserSubscription(userId: string) {
+  //   const user = await this.userModel
+  //     .findById(userId)
+  //     .select('plan stripeCustomerId');
+  //   return {
+  //     plan: user?.plan || 'free',
+  //     stripeCustomerId: user?.stripeCustomerId,
+  //   };
+  // }
+
+  async getUserSubscription(userId: string) {
+    const user = await this.userModel.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.stripeCustomerId) {
+      return {
+        plan: 'free',
+        subscribed: false,
+      };
+    }
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+    const subscriptions = await stripe.subscriptions.list({
+      customer: user.stripeCustomerId,
+      status: 'all',
+      limit: 1,
+    });
+
+    if (!subscriptions.data.length) {
+      return {
+        plan: user.plan ?? 'free',
+        subscribed: false,
+        stripeCustomerId: user.stripeCustomerId,
+      };
+    }
+
+    const subscription = subscriptions.data[0];
+
+    return {
+      plan: user.plan,
+      stripeCustomerId: user.stripeCustomerId,
+
+      subscriptionId: subscription.id,
+      status: subscription.status,
+
+      currentPeriodStart: subscription.items.data[0]?.current_period_start,
+
+      currentPeriodEnd: subscription.items.data[0]?.current_period_end,
+
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+
+      currency: subscription.currency,
+
+      amount: subscription.items.data[0]?.price.unit_amount,
+
+      interval: subscription.items.data[0]?.price.recurring?.interval,
+
+      priceId: subscription.items.data[0]?.price.id,
+
+      productId: subscription.items.data[0]?.price.product,
+    };
+  }
+
+  async verifyStripeSession(sessionId: string) {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status === 'paid' && session.metadata?.userId) {
+      // Update user plan in DB
+      await this.userModel.updateOne(
+        { _id: session.metadata.userId },
+        { plan: session.metadata.plan || 'advanced' },
+      );
+      return { success: true, plan: session.metadata.plan };
+    }
+
+    return { success: true };
   }
 }
