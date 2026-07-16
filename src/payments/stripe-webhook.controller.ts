@@ -9,15 +9,16 @@ import {
 import type { Request } from 'express';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  // apiVersion: '2025-02-11',
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {});
 
 @Controller('stripe')
 export class StripeController {
   @Post('webhook')
   @HttpCode(200)
-  async handleWebhook(@Req() req: Request, @Headers('stripe-signature') sig: string) {
+  async handleWebhook(
+    @Req() req: Request,
+    @Headers('stripe-signature') sig: string,
+  ) {
     let event: Stripe.Event;
 
     try {
@@ -31,26 +32,24 @@ export class StripeController {
     }
 
     switch (event.type) {
-      case 'checkout.session.completed':
-        console.log('✅ Checkout session completed');
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.userId && session.metadata?.plan) {
+          console.log(
+            `✅ Subscription successful for user ${session.metadata.userId} → ${session.metadata.plan}`,
+          );
+          // TODO: Inject UsersService and update user.plan + subscriptionId
+        }
         break;
-
-      case 'payment_intent.succeeded':
-        console.log('💰 Payment succeeded');
+      }
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+        console.log(`Subscription status changed: ${event.type}`);
         break;
-
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        console.log(`Unhandled event: ${event.type}`);
     }
 
     return { received: true };
   }
 }
-
-
-export const SUBSCRIPTION_PLANS = {
-  free: { name: 'Free', commission: 0.15, features: [] },
-  beginner: { name: 'Beginner', price: 9, commission: 0.05, maxProducts: 10 },
-  intermediate: { name: 'Intermediate', price: 29, commission: 0.03, maxProducts: 50 },
-  advanced: { name: 'Advanced', price: 79, commission: 0.01, maxProducts: -1 },
-};

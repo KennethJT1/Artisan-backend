@@ -12,7 +12,7 @@ export enum UserRole {
 
 export interface PaymentMethod {
   _id: Types.ObjectId;
-  type: string;          
+  type: string;
   brand?: string;
   last4: string;
   expMonth?: number;
@@ -48,23 +48,26 @@ export class User {
   @Prop() resetToken?: string;
   @Prop() resetTokenExpiry?: Date;
 
-@Prop({
+  @Prop({
     type: [
       {
-        _id:        { type: Types.ObjectId, auto: true },
-        type:       { type: String, required: true },
-        brand:      { type: String, default: 'unknown' },
-        last4:      { type: String, required: true },
-        expMonth:   Number,
-        expYear:    Number,
-        isDefault:  { type: Boolean, default: false },
+        _id: { type: Types.ObjectId, auto: true },
+        type: { type: String, required: true },
+        brand: { type: String, default: 'unknown' },
+        last4: { type: String, required: true },
+        expMonth: Number,
+        expYear: Number,
+        isDefault: { type: Boolean, default: false },
         stripePaymentMethodId: String,
-        createdAt:  { type: Date, default: Date.now },
+        createdAt: { type: Date, default: Date.now },
       },
     ],
     default: [],
   })
   paymentMethods: PaymentMethod[];
+
+  @Prop()
+  stripeCustomerId?: string;
 
   // Meta
   @Prop({ default: 'free' })
